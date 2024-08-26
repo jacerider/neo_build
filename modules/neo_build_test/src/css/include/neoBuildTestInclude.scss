@@ -1,0 +1,3 @@
+@mixin neo-build-test-color($color: sky-300) {
+  @apply text-#{$color};
+}

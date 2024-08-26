@@ -1,0 +1,14 @@
+services:
+  neo_build:
+    class: Drupal\neo_build\Build
+    arguments: ['@messenger', '@logger.factory', '@extension.list.theme', '@extension.list.module', '@http_client', '@string_translation', '@plugin.manager.neo_build_scope', '%app.root%']
+  plugin.manager.neo_build_scope:
+    class: Drupal\neo_build\ScopePluginManager
+    arguments: ['@module_handler', '@cache.discovery']
+  plugin.manager.neo_build_group:
+    class: Drupal\neo_build\GroupPluginManager
+    arguments: ['@module_handler', '@cache.discovery']
+  path_processor.neo_build_asset:
+    class: Drupal\neo_build\PathProcessor\PathProcessorNeoBuildAsset
+    tags:
+      - { name: path_processor_inbound, priority: 300 }

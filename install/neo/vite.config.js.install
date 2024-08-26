@@ -1,0 +1,25 @@
+import { host, port, https, outDir, ignored, scopes, groups } from './neo.json';
+import { buildServer, buildCss, buildConfig, checkerConfig } from '[WEB-ROOT]/[MODULE-DIR]/plugin/neo-vite.cjs';
+import { buildStylelint } from '[WEB-ROOT]/[MODULE-DIR]/plugin/neo-stylelint.cjs';
+import neoBuild from '[WEB-ROOT]/[MODULE-DIR]/plugin/neo-vite-build.cjs';
+import { defineConfig } from 'vite';
+import sassGlobImports from 'vite-plugin-sass-glob-import';
+import checker from 'vite-plugin-checker';
+import stylelint from 'vite-plugin-stylelint';
+const scopeId = process.env.NEO_SCOPE;
+const scope = scopes[scopeId];
+const groupId = process.env.NEO_GROUP || 'custom';
+const group = groups[groupId] || null;
+
+export default defineConfig({
+  root: outDir,
+  build: buildConfig(scope, group),
+  css: buildCss(scope, group),
+  server: buildServer(host, port, https, outDir, ignored),
+  plugins: [
+    checker(checkerConfig),
+    sassGlobImports(),
+    stylelint(buildStylelint(scope, group)),
+    neoBuild(scope, group),
+  ],
+});

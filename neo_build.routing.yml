@@ -1,0 +1,14 @@
+neo_build.vite_config:
+  path: '/api/neo/vite.config.json'
+  defaults:
+    _title: 'Vite Config'
+    _controller: '\Drupal\neo_build\Controller\NeoBuildViteConfigController'
+  requirements:
+    _permission: 'access content'
+neo_build.vite_asset:
+  path: '/api/neo/asset'
+  defaults:
+    _title: 'Vite Asset'
+    _controller: '\Drupal\neo_build\Controller\NeoBuildViteAssetController'
+  requirements:
+    _permission: 'access content'

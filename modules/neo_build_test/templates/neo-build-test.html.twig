@@ -1,0 +1,75 @@
+{{ attach_library('neo_build_test/contribScss') }}
+{{ attach_library('neo_build_test/customScss') }}
+{{ attach_library('neo_build_test/customCss') }}
+<div class="neo-build-test">
+  <div class="p-2 mb-2 text-white bg-red-400 rounded neo-build-test--wrapper">
+    This should be red. (styled with classes)
+    <div class="neo-build-test--inner">
+      This should be blue. (styled with scss)
+      <div class="neo-build-test--dynamic">[javascript embed failed]</div>
+    </div>
+  </div>
+  <h2>Themes</h2>
+  <div class="p-2 mb-2 rounded bg-primary-900">
+  <div class="p-2 rounded bg-primary-800">
+  <div class="p-2 rounded bg-primary-700">
+  <div class="p-2 rounded bg-primary-600">
+    <div class="p-2 text-white rounded bg-primary dark:bg-white dark:text-primary">
+      THEME: Default (Primary)
+      <div class="p-2 rounded bg-secondary-900">
+      <div class="p-2 rounded bg-secondary-800">
+      <div class="p-2 rounded bg-secondary-700">
+      <div class="p-2 rounded bg-secondary-600">
+        <div class="p-2 mt-2 text-white rounded bg-secondary dark:bg-white dark:text-secondary">
+          THEME: Default (Secondary)
+        </div>
+      </div>
+      </div>
+      </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  </div>
+  </div>
+  <div class="theme-inverse">
+    <div class="p-2 mb-2 rounded bg-primary-900">
+    <div class="p-2 rounded bg-primary-800">
+    <div class="p-2 rounded bg-primary-700">
+    <div class="p-2 rounded bg-primary-600">
+      <div class="p-2 text-white rounded bg-primary dark:bg-white dark:text-primary">
+        THEME: Inverse (Primary)
+        <div class="p-2 rounded bg-secondary-900">
+        <div class="p-2 rounded bg-secondary-800">
+        <div class="p-2 rounded bg-secondary-700">
+        <div class="p-2 rounded bg-secondary-600">
+          <div class="p-2 mt-2 text-white rounded bg-secondary dark:bg-white dark:text-secondary">
+            THEME: Default (Secondary)
+          </div>
+        </div>
+        </div>
+        </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    </div>
+    </div>
+  </div>
+
+  <h2>Primary</h2>
+  <div class="p-2 mb-2 text-white rounded bg-primary">
+    This should be primary background color.
+    <div class="p-2 mt-2 text-white rounded bg-secondary">
+      This should be secondary background color.
+    </div>
+  </div>
+  <div class="dark">
+    <div class="p-2 text-white rounded bg-primary dark:bg-white dark:text-primary">
+      This should be dark-theme primary background color.
+      <div class="p-2 mt-2 text-white rounded bg-secondary dark:bg-white dark:text-secondary">
+        This should be dark-theme secondary background color.
+      </div>
+    </div>
+  </div>
+</div>

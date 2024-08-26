@@ -1,0 +1,8 @@
+custom:
+  label: 'Custom'
+  description: Watch for changes in custom themes and modules.
+contrib:
+  label: 'Contrib'
+  description: Watch for changes in contrib modules or themes.
+  include:
+   - custom

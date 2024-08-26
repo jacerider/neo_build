@@ -1,0 +1,91 @@
+<?php
+
+/**
+ * @file
+ * NeoBuild module.
+ */
+
+use Drupal\Component\Utility\Html;
+use Drupal\Core\Cache\Cache;
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\neo_build\Event\NeoBuildInlineEvent;
+
+/**
+ * Implements hook_library_info_alter().
+ *
+ * Process libraries configured with vite.
+ */
+function neo_build_library_info_alter(array &$libraries, string $extension) : void {
+  \Drupal::service('neo_build')->processLibraries($libraries, $extension);
+}
+
+/**
+ * Implements hook_module_implements_alter().
+ */
+function neo_build_module_implements_alter(&$implementations, $hook) {
+  if ($hook == 'library_info_alter') {
+    $group = $implementations['neo_build'];
+    unset($implementations['neo_build']);
+    $implementations['neo_build'] = $group;
+  }
+}
+
+/**
+ * Implements hook_help().
+ */
+function neo_build_help(string $route_name, RouteMatchInterface $route_match) : string {
+  switch ($route_name) {
+    case 'help.page.neo_build':
+      $text = file_get_contents(__DIR__ . '/README.md');
+      if ($text === FALSE) {
+        return '';
+      }
+
+      if (!\Drupal::moduleHandler()->moduleExists('markdown')) {
+        return '<pre>' . Html::escape($text) . '</pre>';
+      }
+      else {
+        // Use the Markdown filter to render the README.
+        $filter_manager = \Drupal::service('plugin.manager.filter');
+        $settings = \Drupal::configFactory()->get('markdown.settings')->getRawData();
+        $config = ['settings' => $settings];
+        /** @var \Drupal\filter\Plugin\FilterInterface */
+        $filter = $filter_manager->createInstance('markdown', $config);
+        return $filter->process($text, 'en');
+      }
+  }
+  return '';
+}
+
+/**
+ * Implements hook_page_top().
+ */
+function neo_build_page_top(array &$page_top) {
+  /** @var \Drupal\neo_build\Build $build */
+  $build = \Drupal::service('neo_build');
+  $isDevMode = $build->isDevMode();
+  if ($isDevMode) {
+    // Disable big pipe while in dev mode.
+    \Drupal::routeMatch()->getRouteObject()->setOption('_no_big_pipe', TRUE);
+  }
+  $cid = 'neo_build:inline' . ($isDevMode ? ':dev' : '');
+  if ($cache = \Drupal::cache()->get($cid)) {
+    $css = $cache->data;
+  }
+  else {
+    /** @var \Symfony\Contracts\EventDispatcher\EventDispatcherInterface $eventDispatcher */
+    $eventDispatcher = \Drupal::service('event_dispatcher');
+    $event = new NeoBuildInlineEvent($isDevMode);
+    $eventDispatcher->dispatch($event, NeoBuildInlineEvent::EVENT_NAME);
+    $css = $event->getCss();
+    Drupal::cache()->set($cid, $css, Cache::PERMANENT, $event->getCacheTags());
+  }
+  $page_top['neo_build_dev'] = [
+    '#type' => 'html_tag',
+    '#tag' => 'style',
+    '#value' => $css,
+    '#attributes' => [
+      'neo-build-dev' => '',
+    ],
+  ];
+}

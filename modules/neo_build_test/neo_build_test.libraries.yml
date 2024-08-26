@@ -1,0 +1,85 @@
+jitBrowserTailwind:
+  version: VERSION
+  js:
+    https://unpkg.com/@mhsdesign/jit-browser-tailwindcss: { external: true }
+################################################################################
+# A 'contrib' neo library using SCSS.
+#
+# Will only be built by sites that have:
+#   $settings['neo']['groups'] = ['contrib'];
+################################################################################
+contribScss:
+  version: VERSION
+  ### Can simply be a boolean. Will default to 'custom' group.
+  # neo: TRUE
+  ### Client-specific modules and themes should be in the 'custom' group.
+  # neo: { group: custom }
+  neo: { group: contrib }
+  css:
+    component:
+      src/css/neoBuildTestContribScss.scss: { minified: true }
+  js:
+    src/js/neoBuildTestTs.ts: {}
+  dependencies:
+    - core/once
+    - core/drupal
+    # - neo_build_test/jitBrowserTailwind
+################################################################################
+# A 'contrib' neo library using CSS.
+#
+# Will only be built by sites that have:
+#   $settings['neo']['groups'] = ['contrib'];
+################################################################################
+customCss:
+  version: VERSION
+  neo: { group: contrib }
+  css:
+    component:
+      src/css/neoBuildTestContribCss.css: { minified: true }
+################################################################################
+# A 'contrib' neo library that is 'front' scoped.
+#
+# Will only be built by sites that have:
+#   $settings['neo']['groups'] = ['contrib'];
+#
+# Will only be Tailwind compiled when building the 'front' scope.
+################################################################################
+scopeFrontScss:
+  version: VERSION
+  neo: { group: contrib, scope: front }
+  css:
+    component:
+      src/css/neoBuildTestScopeFrontScss.scss: { minified: true }
+  js:
+    src/js/neoBuildTestScopeFrontTs.ts: {}
+################################################################################
+# A 'contrib' neo library that is 'back' scoped.
+#
+# Will only be built by sites that have:
+#   $settings['neo']['groups'] = ['contrib'];
+#
+# Will only be Tailwind compiled when building the 'front' scope.
+################################################################################
+scopeBackScss:
+  version: VERSION
+  neo: { group: contrib, scope: back }
+  css:
+    component:
+      src/css/neoBuildTestScopeBackScss.scss: { minified: true }
+  js:
+    src/js/neoBuildTestScopeBackTs.ts: {}
+################################################################################
+# A library that will be made available to all other SCSS files via @use.
+################################################################################
+require:
+  version: VERSION
+  dependencies: []
+  neo:
+    require:
+      src/css/require/neoBuildTestRequire.scss: {namespace: testRequire}
+include:
+  version: VERSION
+  dependencies: []
+  neo:
+    include:
+      src/css/include/neoBuildTestInclude.scss: {}

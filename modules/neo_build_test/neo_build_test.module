@@ -1,0 +1,17 @@
+<?php
+
+/**
+ * @file
+ * Neo Vite Test module.
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function neo_build_test_theme() {
+  return [
+    'neo_build_test' => [
+      'variables' => [],
+    ],
+  ];
+}

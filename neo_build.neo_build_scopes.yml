@@ -1,0 +1,6 @@
+front:
+  label: 'Front'
+  description: 'Focus on assets built for the frontend.'
+back:
+  label: 'Back'
+  description: 'Focus on assets built for the backend.'

@@ -1,0 +1,2 @@
+const config = require('[WEB-ROOT]/[MODULE-DIR]/plugin/neo-postcss.cjs');
+module.exports = config.postcssConfig;

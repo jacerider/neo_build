@@ -1,0 +1,30 @@
+/**
+ * Optional Includes:
+ * When a library is added via include, it will need to be loaded.
+ */
+@use 'neoBuildTestInclude';
+
+/**
+ * Required Includes:
+ * When a library is added via require, it will already be loaded.
+ */
+// @use 'neoBuildTestRequire' as testRequire;
+
+@import 'import/neoBuildTestImportScss';
+
+.neo-build-test {
+  @apply bg-pink-800 p-2 m-2 rounded;
+
+  .neo-build-test--inner {
+    @include testRequire.neo-build-test-bg;
+    @include neoBuildTestInclude.neo-build-test-color;
+  }
+
+  .neo-build-test--jit {
+    @apply bg-primary-800 p-2 mt-2 rounded text-xs;
+
+    pre {
+      @apply font-serif font-thin;
+    }
+  }
+}

@@ -1,0 +1,8 @@
+
+neoBuildTest.test_controller_test:
+  path: '/neo/test/vite'
+  defaults:
+    _controller: '\Drupal\neo_build_test\Controller\TestController::test'
+    _title: 'Neo Vite: Test'
+  requirements:
+    _permission: 'administer neo'

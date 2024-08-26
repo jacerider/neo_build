@@ -1,0 +1,2 @@
+const config = require('[WEB-ROOT]/[MODULE-DIR]/plugin/neo-prettier.cjs');
+module.exports = config.prettierConfig;

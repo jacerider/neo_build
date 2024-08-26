@@ -1,0 +1,3 @@
+@mixin neo-build-test-bg($color: blue-800) {
+  @apply bg-#{$color} p-2 mt-2 rounded;
+}

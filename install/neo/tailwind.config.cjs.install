@@ -1,0 +1,5 @@
+/** @type {import('tailwindcss').Config} */
+import { configBuild } from '[WEB-ROOT]/[MODULE-DIR]/plugin/neo-tailwind.cjs';
+import { devScope, tailwind, scopes } from "./neo.json";
+const scope = scopes[process.env.NEO_SCOPE || devScope];
+module.exports = configBuild(tailwind, scope);
