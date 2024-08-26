@@ -35,11 +35,21 @@ https://www.drupal.org/node/1897420 for further information.
 
 Add to .gitignore:
 
- ```
+```
 # Neo
 /neo.json
 /.stylelintcache
- ```
+```
+
+If using DDEV, add to config.yml:
+
+```
+web_extra_exposed_ports:
+  - name: Vite
+    container_port: 5173
+    http_port: 5172
+    https_port: 5173
+```
 
 
 USAGE
