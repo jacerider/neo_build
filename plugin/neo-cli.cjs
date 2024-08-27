@@ -164,7 +164,7 @@ const cli = async function () {
             const doBuild = process.env.NODE_ENV !== 'production' && typeof process.env.VITE_BUILD === 'undefined';
             let run;
             if (doBuild) {
-              run = `VITE_BUILD=true npm run build --target=prod --scope=${scope} --group=${group} ` + (env === 'ddev' ? '--env=ddev' : '--env=local');
+              run = `VITE_BUILD=true npm start --target=prod --scope=${scope} --group=${group} ` + (env === 'ddev' ? '--env=ddev' : '--env=local');
             }
             else {
               run = isDdev ? 'ddev drush neo-build-end' : 'drush neo-build-end';
