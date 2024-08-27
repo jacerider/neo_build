@@ -9,7 +9,7 @@
     "build:back": "npm run build --target=dev --scope=back --group=custom",
     "build:front:contrib": "npm run build --target=dev --scope=front --group=contrib",
     "build:back:contrib": "npm run build --target=dev --scope=back --group=contrib",
-    "deploy": "npm run build --target=prod --env=ddev --scope-all",
+    "deploy": "npm run build --target=prod --scope-all",
     "preview": "vite preview"
   },
   "devDependencies": {
