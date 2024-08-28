@@ -617,6 +617,7 @@ class DrushCommands extends CoreCommands {
   public function neoBuildDevEnable() {
     Build::setNeoState('dev', TRUE);
     Build::setNeoState('devAsDdev', !empty($_ENV['NEO_DDEV']));
+    $this->fileSystem->saveData('', $this->getRoot() . '/.git/index.lock', FileExists::Replace);
     $this->output()->writeln(dt('<info>[neo]</info> Automatic tracking of Neo DEV server enabled.'));
   }
 
@@ -631,6 +632,7 @@ class DrushCommands extends CoreCommands {
   public function neoBuildDevDisable() {
     Build::unsetNeoState('dev');
     Build::unsetNeoState('devAsDdev');
+    $this->fileSystem->delete($this->getRoot() . '/.git/index.lock');
     $this->output()->writeln(dt('<info>[neo]</info> Automatic tracking of Neo DEV server disabled.'));
   }
 
