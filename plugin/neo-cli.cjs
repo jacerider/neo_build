@@ -7,7 +7,7 @@ const prompts = require('@inquirer/prompts');
 let scopes = null;
 const getScopes = function () {
   if (!scopes) {
-    const cmd = (env === 'ddev' ? 'ddev ' : '') + 'drush neo-scopes --format=json';
+    const cmd = 'drush neo-scopes --format=json';
     scopes = JSON.parse(execSync(cmd).toString());
   }
   return scopes;
@@ -19,11 +19,6 @@ let env = process.env.npm_config_env || null;
 let scope = process.env.npm_config_scope || null;
 let group = process.env.npm_config_group || null;
 let scopeAll = process.env.npm_config_scope_all || false;
-
-// Check if DDEV is available and running.
-if (!env && fs.existsSync(path.resolve(process.cwd(), '.ddev'))) {
-  env = process.env.DDEV_PRIMARY_URL ? 'local' : 'ddev';
-}
 
 if (scopeAll) {
   const scopes = getScopes();
@@ -41,18 +36,6 @@ const cli = async function () {
   process.stdout.write(
     `${colors.cyan('[neo]')} ${colors.yellow('Build CLI')}\n\n`
   );
-
-  if (!env) {
-    env = await prompts.select({
-      message: 'Select environment',
-      choices: [
-        { name: 'Use DDEV', value: 'ddev', 'description': 'Will use DDEV environment.' },
-        { name: 'Use Local', value: 'local', 'description': 'Will use local environment.' },
-      ],
-    }).catch(function () {
-      process.exit(1);
-    });
-  }
 
   if (!target) {
     target = await prompts.select({
@@ -91,7 +74,7 @@ const cli = async function () {
   }
 
   if (target === 'dev' && !group) {
-    const cmd = (env === 'ddev' ? 'ddev ' : '') + 'drush neo-groups --format=json';
+    const cmd = 'drush neo-groups --format=json';
     const groups = JSON.parse(execSync(cmd).toString());
     const options = [];
     for (const key in groups) {
@@ -121,10 +104,6 @@ const cli = async function () {
     suffixVite += ' build && tsc';
     dev = 'disable';
   }
-  if (env === 'ddev') {
-    prefixDrush += 'ddev ';
-    timeout = 1000;
-  }
 
   try {
     execSync(prefixDrush + 'drush neo-dev-' + dev, { stdio: 'inherit' });
@@ -145,9 +124,6 @@ const cli = async function () {
         if (group) {
           prefixVite += 'NEO_GROUP=' + group + ' ';
         }
-        if (env === 'ddev') {
-          prefixVite += 'NEO_DDEV=true ';
-        }
 
         setTimeout(function () {
           try {
@@ -159,15 +135,14 @@ const cli = async function () {
               return;
             }
             // Build for production.
-            const isDdev = typeof process.env.NEO_DDEV !== 'undefined';
             // When running in dev mode, we want to build for production.
             const doBuild = process.env.NODE_ENV !== 'production' && typeof process.env.VITE_BUILD === 'undefined';
             let run;
             if (doBuild) {
-              run = `VITE_BUILD=true npm start --target=prod --scope=${scope} --group=${group} ` + (env === 'ddev' ? '--env=ddev' : '--env=local');
+              run = `VITE_BUILD=true npm start --target=prod --scope=${scope} --group=${group}`;
             }
             else {
-              run = isDdev ? 'ddev drush neo-build-end' : 'drush neo-build-end';
+              run = 'drush neo-build-end';
             }
             const child = spawn(run, [], { shell: true })
             if (doBuild) {

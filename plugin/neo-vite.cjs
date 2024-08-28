@@ -67,7 +67,7 @@ module.exports = {
   },
   buildServer: (host, port, https, outDir, ignored) => {
     let origin = '';
-    if (typeof process.env.NEO_DDEV === 'undefined' && process.env.DDEV_PRIMARY_URL) {
+    if (process.env.DDEV_PRIMARY_URL) {
       host = '0.0.0.0';
       origin = `${process.env.DDEV_PRIMARY_URL}:${port}`;
       https = false;

@@ -158,11 +158,7 @@ class Build {
       }
       if ($this->isDevMode === TRUE) {
         if (!$this->getNeoState('build', FALSE)) {
-          $command = 'npm run build';
-          if (isset($_ENV['IS_DDEV_PROJECT'])) {
-            $command = 'npm run ddev-build';
-          }
-          throw new \Exception('Vite production assets are stale. Please rebuild them by running <pre>' . $command . '</pre>');
+          throw new \Exception('Vite production assets are stale. Please rebuild them by running <pre>npm start</pre>');
         }
       }
       if (!is_bool($this->isDevMode)) {
@@ -329,9 +325,6 @@ class Build {
     ];
     $settings['host'] = $_SERVER['SERVER_NAME'];
     $settings['https'] = TRUE;
-    if (self::getNeoState('buildAsDdev', FALSE)) {
-      $settings['host'] = $_SERVER['SERVER_NAME'];
-    }
     // Global settings.
     if (isset($settings[$setting])) {
       $value = $settings[$setting];

@@ -11,16 +11,15 @@ const debounce = (func, timeout = 300) => {
 }
 
 const reload = debounce((ctx, cache, restart) => {
-  const isDdev = typeof process.env.NEO_DDEV !== 'undefined';
   let cmd = [];
   cache = typeof cache !== 'undefined' && cache === true;
   restart = typeof restart !== 'undefined' && restart === true;
   if (cache) {
-    cmd.push(isDdev ? 'ddev drush neo-cc' : 'drush neo-cc');
+    cmd.push('drush neo-cc');
   }
   if (restart) {
     const restartCmd = 'neo ' + process.env.NEO_SCOPE + ' ' + process.env.NEO_GROUP;
-    cmd.push(isDdev ? 'ddev drush ' + restartCmd : 'drush ' + restartCmd);
+    cmd.push('drush ' + restartCmd);
   }
   cmd = cmd.join(' && ');
   if (restart) {
@@ -74,8 +73,7 @@ export default function neoBuild(scope, group) {
         `${colors.cyan('[neo]')} Build Group: ${colors.yellow(group.label)}\n`
       );
       return new Promise((resolve, reject) => {
-        const isDdev = typeof process.env.NEO_DDEV !== 'undefined';
-        let run = isDdev ? 'ddev drush neo-build-start' : 'drush neo-build-start';
+        let run = 'drush neo-build-start';
         const child = spawn(run, [], { shell: true });
         child.on('close', code => {
           resolve();
