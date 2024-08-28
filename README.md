@@ -87,7 +87,7 @@ BUILD FOR DEV
 To use hot module reload during development, run:
 
 ```shell
-npm run build
+npm start
 ```
 
 The server will run in non-HTTPS mode to avoid XSS issues. If the server is

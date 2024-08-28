@@ -4,12 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "node [WEB-ROOT]/[MODULE-DIR]/plugin/neo-cli.cjs",
-    "build:front": "npm run build --target=dev --scope=front --group=custom",
-    "build:back": "npm run build --target=dev --scope=back --group=custom",
-    "build:front:contrib": "npm run build --target=dev --scope=front --group=contrib",
-    "build:back:contrib": "npm run build --target=dev --scope=back --group=contrib",
-    "deploy": "npm run build --target=prod --scope-all",
+    "start": "node [WEB-ROOT]/[MODULE-DIR]/plugin/neo-cli.cjs",
+    "build:front": "npm start --target=dev --scope=front --group=custom",
+    "build:back": "npm start --target=dev --scope=back --group=custom",
+    "build:front:contrib": "npm start --target=dev --scope=front --group=contrib",
+    "build:back:contrib": "npm start --target=dev --scope=back --group=contrib",
+    "deploy": "npm start --target=prod --scope-all",
     "preview": "vite preview"
   },
   "devDependencies": {
