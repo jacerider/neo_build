@@ -65,7 +65,10 @@ module.exports = {
       }
     };
   },
-  buildServer: (host, port, https, outDir, ignored) => {
+  buildBase: (scope, group) => {
+    return process.env.DDEV_PRIMARY_URL ? '/neo-assets/' : '/';
+  },
+  buildServer: (host, port, https, ignored) => {
     let origin = '';
     if (process.env.DDEV_PRIMARY_URL) {
       host = '0.0.0.0';

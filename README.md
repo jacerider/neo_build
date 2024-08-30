@@ -41,14 +41,16 @@ Add to .gitignore:
 /.stylelintcache
 ```
 
-If using DDEV, add to config.yml:
+If using DDEV, create a file called `neo.conf` in `.ddev/nginx/` with the
+following content:
 
 ```
-web_extra_exposed_ports:
-  - name: Vite
-    container_port: 5173
-    http_port: 5172
-    https_port: 5173
+location /neo-assets/ {
+    proxy_pass http://127.0.0.1:5173/neo-assets/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
 ```
 
 

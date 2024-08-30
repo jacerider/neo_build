@@ -1,5 +1,5 @@
 import { host, port, https, outDir, ignored, scopes, groups } from './neo.json';
-import { buildServer, buildCss, buildConfig, checkerConfig } from '[WEB-ROOT]/[MODULE-DIR]/plugin/neo-vite.cjs';
+import { buildBase, buildServer, buildCss, buildConfig, checkerConfig } from '[WEB-ROOT]/[MODULE-DIR]/plugin/neo-vite.cjs';
 import { buildStylelint } from '[WEB-ROOT]/[MODULE-DIR]/plugin/neo-stylelint.cjs';
 import neoBuild from '[WEB-ROOT]/[MODULE-DIR]/plugin/neo-vite-build.cjs';
 import { defineConfig } from 'vite';
@@ -13,9 +13,10 @@ const group = groups[groupId] || null;
 
 export default defineConfig({
   root: outDir,
+  base: buildBase(scope, group),
   build: buildConfig(scope, group),
   css: buildCss(scope, group),
-  server: buildServer(host, port, https, outDir, ignored),
+  server: buildServer(host, port, https, ignored),
   plugins: [
     checker(checkerConfig),
     sassGlobImports(),

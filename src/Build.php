@@ -281,6 +281,9 @@ class Build {
    * Returns vite state.
    */
   public static function getViteDevServerUrl(): mixed {
+    if (!empty($_ENV['IS_DDEV_PROJECT'])) {
+      return '/neo-assets';
+    }
     return (static::getNeoSetting('https') ? 'https' : 'http') . '://' . static::getNeoSetting('host') . ':' . static::getNeoSetting('port');
   }
 
