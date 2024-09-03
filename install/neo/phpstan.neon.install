@@ -1,5 +1,2 @@
-parameters:
-    level: 1
-    paths:
-        - web/modules
-        - web/themes
+includes:
+    - [WEB-ROOT]/[MODULE-DIR]/phpstan.neon
