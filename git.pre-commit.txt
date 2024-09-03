@@ -1,0 +1,23 @@
+#!/bin/bash
+
+ARRAY=()
+while read st file; do
+  if [ "$st" == 'D' ]; then continue; fi
+  if [[ $file =~ (.*)?\.?(scss|js|ts)$ ]]; then
+    ARRAY+=($file)
+  fi
+done < <(git diff --cached --name-status)
+if (( ${#ARRAY[@]} )); then
+  echo "Assets pending compilation:"
+  for i in "${ARRAY[@]}"
+  do
+    echo "- $i"
+    # or do whatever with individual element of the array
+  done
+  echo ""
+  echo "Please compile assets before committing:"
+  echo "- npm run deploy"
+  echo "or"
+  echo "- close development mode"
+  exit 1
+fi

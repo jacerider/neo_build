@@ -616,7 +616,11 @@ class DrushCommands extends CoreCommands {
    */
   public function neoBuildDevEnable() {
     Build::setNeoState('dev', TRUE);
-    $this->fileSystem->saveData('', $this->getRoot() . '/.git/index.lock', FileExists::Replace);
+    $moduleDir = $this->moduleExtensionList->getPath('neo_build');
+    $file = $this->appRoot . '/' . $moduleDir . '/git.pre-commit.txt';
+    $data = file_get_contents($file);
+    $this->fileSystem->saveData($data, $this->getRoot() . '/.git/hooks/pre-commit', FileExists::Replace);
+    $this->fileSystem->chmod($this->getRoot() . '/.git/hooks/pre-commit', 0777);
     $this->output()->writeln(dt('<info>[neo]</info> Automatic tracking of Neo DEV server enabled.'));
   }
 
@@ -630,7 +634,7 @@ class DrushCommands extends CoreCommands {
    */
   public function neoBuildDevDisable() {
     Build::unsetNeoState('dev');
-    $this->fileSystem->delete($this->getRoot() . '/.git/index.lock');
+    $this->fileSystem->delete($this->getRoot() . '/.git/hooks/pre-commit');
     $this->output()->writeln(dt('<info>[neo]</info> Automatic tracking of Neo DEV server disabled.'));
   }
 
