@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const execSync = require('child_process').execSync;
 const spawn = require('child_process').spawn;
 const colors = require('picocolors');
