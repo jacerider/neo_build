@@ -2,7 +2,7 @@ name: Neo | Vite | Test
 type: module
 description: Test Vite integration for Drupal asset libraries.
 package: 'Neo Test'
-version: 1.0.0
+version: 1.0.4
 core_version_requirement: ^10.3
 php: 8.0
 neo: true
