@@ -46,6 +46,7 @@ following content:
 
 ```
 location /neo-assets/ {
+    rewrite ^(.*)\.neo$ $1 break;
     proxy_pass http://127.0.0.1:5173/neo-assets/;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;

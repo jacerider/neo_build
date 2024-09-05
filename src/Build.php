@@ -231,7 +231,6 @@ class Build {
   private function rewriteLibraryForDev(AssetLibrary $assetLibrary): array {
     $library = $assetLibrary->getDefinition();
     $devServerBaseUrl = $assetLibrary->getDevServerUrl();
-    // $devServerBaseUrl = (static::getNeoSetting('https') ? 'https' : 'http') . '://' . static::getNeoSetting('host') . '/api/neo/asset/' . $assetLibrary->getExtensionBasePath();
     if (isset($library['css'])) {
       foreach ($library['css'] as $type => $paths) {
         foreach ($paths as $path => $options) {
@@ -243,7 +242,11 @@ class Build {
           $attributes = $options['attributes'] ?? [];
           $attributes['type'] = 'module';
           $options['attributes'] = $attributes;
-          $newPath = $devServerBaseUrl . '/' . $path;
+          // NGINX will try to load the file immediately which prevents the
+          // reverse proxy from kicking in. We add a .neo extension to prevent
+          // this and allow our location to handle it while removeing the
+          // extension.
+          $newPath = $devServerBaseUrl . '/' . $path . '.neo';
           $library['js'][$newPath] = $options;
         }
       }
@@ -259,7 +262,11 @@ class Build {
         $attributes = $options['attributes'] ?? [];
         $attributes['type'] = 'module';
         $options['attributes'] = $attributes;
-        $newPath = $devServerBaseUrl . '/' . $path;
+        // NGINX will try to load the file immediately which prevents the
+        // reverse proxy from kicking in. We add a .neo extension to prevent
+        // this and allow our location to handle it while removeing the
+        // extension.
+        $newPath = $devServerBaseUrl . '/' . $path . '.neo';
         $library['js'][$newPath] = $options;
       }
     }
