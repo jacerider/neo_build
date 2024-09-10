@@ -3,16 +3,8 @@ module.exports = {
     trailingComma: "es5",
     singleQuote: true,
     plugins: [
-      "@zackad/prettier-plugin-twig-melody",
+      "@zackad/prettier-plugin-twig",
       "prettier-plugin-tailwindcss",
-    ],
-    overrides: [
-      {
-        files: "*.twig",
-        options: {
-          parser: "melody",
-        },
-      },
     ],
   },
 };
