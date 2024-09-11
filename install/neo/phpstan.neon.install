@@ -1,2 +1,0 @@
-includes:
-    - [WEB-ROOT]/[MODULE-DIR]/phpstan.neon

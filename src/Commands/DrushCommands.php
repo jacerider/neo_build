@@ -6,6 +6,7 @@ namespace Drupal\neo_build\Commands;
 
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Component\Plugin\PluginManagerInterface;
+use Drupal\Component\Serialization\Yaml;
 use Drupal\neo_build\Build;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Asset\LibraryDiscoveryInterface;
@@ -162,10 +163,20 @@ class DrushCommands extends CoreCommands {
       ],
       'scopes' => [],
       'groups' => [],
+      'phpstan' => [
+        'parameters' => [
+          'level' => 1,
+          'paths' => [],
+        ],
+      ],
     ];
 
     $this->libraryDiscovery->clearCachedDefinitions();
     Build::preventAlter();
+
+    if (file_exists('modules/custom')) {
+      $config['phpstan']['parameters']['paths']['customModules'] = $docRoot . 'modules/custom';
+    }
 
     $scopes = $this->scopeManager->getDefinitions();
     foreach ($scopes as $scope => $scope_definition) {
@@ -226,8 +237,16 @@ class DrushCommands extends CoreCommands {
     Build::preventAlter(FALSE);
     $this->libraryDiscovery->clearCachedDefinitions();
 
+    // Extract ts.
     $this->fileSystem->saveData(json_encode($config['ts'], JSON_PRETTY_PRINT), $root . '/tsconfig.neo.json', FileExists::Replace);
     unset($config['ts']);
+
+    // Extract phpstan.
+    $config['phpstan']['parameters']['paths'] = array_values($config['phpstan']['parameters']['paths']);
+    $this->fileSystem->saveData(Yaml::encode($config['phpstan']), $root . '/phpstan.neon', FileExists::Replace);
+    unset($config['phpstan']);
+
+    // Anything that remains goes in neo.
     $this->fileSystem->saveData(json_encode($config, JSON_PRETTY_PRINT), $root . '/neo.json', FileExists::Replace);
 
     $this->output()->writeln(dt('<info>[neo]</info> Prepare Success'));
@@ -302,8 +321,14 @@ class DrushCommands extends CoreCommands {
    */
   protected function neoBuildExtension(Extension $extension, string $scope, array &$scopeConfig, array &$globalConfig) {
     $docRoot = './' . Build::getNeoSetting('docroot');
+    $group = Build::getNeoState('group');
+    $dev = Build::getNeoState('dev', FALSE);
     $relativeRoot = './';
     $id = $extension->getName();
+    // When in contrib dev mode, add all neo* modules to phpstan.
+    if ($dev && substr($id, 0, 3) === 'neo' && $group === 'contrib') {
+      $globalConfig['phpstan']['parameters']['paths'][$id] = $docRoot . $extension->getPath();
+    }
     /** @var \Drupal\Core\Extension\Extension $extension */
     if ($extension->getType() === 'module') {
       $info = $this->moduleExtensionList->getExtensionInfo($id);
@@ -325,6 +350,11 @@ class DrushCommands extends CoreCommands {
     }
     elseif (isset($extension->info)) {
       if (!empty($extension->info['neo'])) {
+        // Add all custom themes that extend a neo theme to phpstan.
+        $themeGroup = $extension->info['neo']['group'] ?? 'custom';
+        if ($themeGroup === 'custom') {
+          $globalConfig['phpstan']['parameters']['paths'][$id] = $docRoot . $extension->getPath();
+        }
         $themeScopes = $scope;
         if (is_array($extension->info['neo']) && isset($extension->info['neo']['scope'])) {
           $themeScopes = $extension->info['neo']['scope'];
@@ -747,7 +777,6 @@ class DrushCommands extends CoreCommands {
     $webRoot = $this->getWebRoot();
     $files = [
       'package.json.install' => $docRoot,
-      'phpstan.neon.install' => $docRoot,
       'stylelint.config.cjs.install' => $docRoot,
       'prettier.config.cjs.install' => $docRoot,
       'postcss.config.cjs.install' => $docRoot,
