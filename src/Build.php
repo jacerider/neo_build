@@ -8,6 +8,7 @@ use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ThemeExtensionList;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Messenger\MessengerInterface;
+use Drupal\Core\Routing\AdminContext;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\StringTranslation\TranslationInterface;
 use GuzzleHttp\ClientInterface;
@@ -69,6 +70,13 @@ class Build {
   private $scopeManager;
 
   /**
+   * The admin context.
+   *
+   * @var \Drupal\Core\Routing\AdminContext
+   */
+  protected $adminContext;
+
+  /**
    * Drupal app root.
    *
    * @var string
@@ -100,6 +108,7 @@ class Build {
     ClientInterface $http_client,
     TranslationInterface $string_translation,
     ScopePluginManager $scope_manager,
+    AdminContext $admin_context,
     string $app_root,
     ) {
     $this->messenger = $messenger;
@@ -109,6 +118,7 @@ class Build {
     $this->httpClient = $http_client;
     $this->stringTranslation = $string_translation;
     $this->scopeManager = $scope_manager;
+    $this->adminContext = $admin_context;
     $this->appRoot = $app_root;
   }
 
@@ -158,7 +168,7 @@ class Build {
       }
       if ($this->isDevMode === TRUE) {
         if (!$this->getNeoState('build', FALSE)) {
-          throw new \Exception('Vite production assets are stale. Please rebuild them by running <pre>npm start</pre>');
+          throw new \Exception('Neo production assets are stale. Please rebuild them by running <pre>npm start</pre>');
         }
       }
       if (!is_bool($this->isDevMode)) {
@@ -172,7 +182,8 @@ class Build {
    * Rewrite library for dev or dist.
    */
   private function rewriteLibrary(AssetLibrary $assetLibrary): array {
-    if ($this->isDevMode() && $assetLibrary->isDevMode()) {
+    $pageScope = $this->adminContext->isAdminRoute() ? 'back' : 'front';
+    if ($this->getNeoState('scope') === $pageScope && $this->isDevMode() && $assetLibrary->isDevMode()) {
       return $this->rewriteLibraryForDev($assetLibrary);
     }
     return $this->rewriteLibraryForDist($assetLibrary);

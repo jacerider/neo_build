@@ -11,6 +11,7 @@ declare function once(id: string, selector: string, context?: HTMLElement): Arra
 interface JQuery {
   findOnce:any;
   overlaps:any;
+  drupalSetSummary:any;
 }
 
 interface Window {

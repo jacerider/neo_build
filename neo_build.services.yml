@@ -1,7 +1,7 @@
 services:
   neo_build:
     class: Drupal\neo_build\Build
-    arguments: ['@messenger', '@logger.factory', '@extension.list.theme', '@extension.list.module', '@http_client', '@string_translation', '@plugin.manager.neo_build_scope', '%app.root%']
+    arguments: ['@messenger', '@logger.factory', '@extension.list.theme', '@extension.list.module', '@http_client', '@string_translation', '@plugin.manager.neo_build_scope', '@router.admin_context', '%app.root%']
   plugin.manager.neo_build_scope:
     class: Drupal\neo_build\ScopePluginManager
     arguments: ['@module_handler', '@cache.discovery']

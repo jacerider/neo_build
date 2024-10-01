@@ -159,6 +159,7 @@ class DrushCommands extends CoreCommands {
         'base' => [],
         'components' => [],
         'utilities' => [],
+        'variants' => [],
         'safelist' => [],
       ],
       'scopes' => [],
@@ -224,9 +225,13 @@ class DrushCommands extends CoreCommands {
     $config['tailwind']['theme']['colors']['current'] = 'currentColor';
     $config['tailwind']['theme']['colors']['inherit'] = 'inherit';
     $config['tailwind']['theme']['colors']['white'] = 'rgb(var(--color-white) / <alpha-value>)';
+    $config['tailwind']['theme']['colors']['white-content'] = 'rgb(var(--color-white-content) / <alpha-value>)';
     $config['tailwind']['base'][':root']['--color-white'] = '255 255 255';
+    $config['tailwind']['base'][':root']['--color-white-content'] = '0 0 0';
     $config['tailwind']['theme']['colors']['black'] = 'rgb(var(--color-black) / <alpha-value>)';
+    $config['tailwind']['theme']['colors']['black-content'] = 'rgb(var(--color-black-content) / <alpha-value>)';
     $config['tailwind']['base'][':root']['--color-black'] = '0 0 0';
+    $config['tailwind']['base'][':root']['--color-black-content'] = '255 255 255';
     $config['tailwind']['theme']['colors']['shadow']['dark'] = 'rgb(var(--color-shadow) / <alpha-value>)';
     $config['tailwind']['base'][':root']['--color-shadow'] = '0 0 0';
 
@@ -280,6 +285,7 @@ class DrushCommands extends CoreCommands {
         'base' => [],
         'components' => [],
         'utilities' => [],
+        'variants' => [],
         'safelist' => [],
       ],
       'stylelint' => [],
@@ -337,9 +343,16 @@ class DrushCommands extends CoreCommands {
         $globalConfig['tailwind']['content'][$id . ':Module'] = $docRoot . $extension->getPath() . $this->tailwindModuleSuffix;
         $globalConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $extension->getPath() . $this->tailwindTwigSuffix;
         if (is_array($info['neo'])) {
-          foreach (['theme', 'base', 'components', 'utilities'] as $layer) {
+          foreach ([
+            'theme',
+            'base',
+            'components',
+            'utilities',
+            'variants',
+          ] as $layer) {
             if (isset($info['neo'][$layer])) {
-              $globalConfig['tailwind'][$layer] = NestedArray::mergeDeep($globalConfig['tailwind'][$layer], $info['neo'][$layer]);
+              // $globalConfig['tailwind'][$layer] = NestedArray::mergeDeep($globalConfig['tailwind'][$layer], $info['neo'][$layer]);
+              $globalConfig['tailwind'][$layer] += $info['neo'][$layer];
             }
           }
           if (isset($info['neo']['safelist'])) {
@@ -368,9 +381,16 @@ class DrushCommands extends CoreCommands {
           $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $extension->getPath() . $this->tailwindTwigSuffix;
         }
         if (is_array($extension->info['neo'])) {
-          foreach (['theme', 'base', 'components', 'utilities'] as $layer) {
+          foreach ([
+            'theme',
+            'base',
+            'components',
+            'utilities',
+            'variants',
+          ] as $layer) {
             if (isset($extension->info['neo'][$layer])) {
-              $scopeConfig['tailwind'][$layer] = NestedArray::mergeDeep($extension->info['neo'][$layer], $scopeConfig['tailwind'][$layer]);
+              // $scopeConfig['tailwind'][$layer] = NestedArray::mergeDeep($extension->info['neo'][$layer], $scopeConfig['tailwind'][$layer]);
+              $scopeConfig['tailwind'][$layer] += $extension->info['neo'][$layer];
             }
           }
           if (isset($extension->info['neo']['safelist'])) {
@@ -865,8 +885,16 @@ class DrushCommands extends CoreCommands {
                 }
                 $required_extention = $available_themes[$theme_key];
                 if (is_array($required_extention->info['neo'])) {
-                  foreach (['theme', 'base', 'components', 'utilities'] as $layer) {
+                  foreach ([
+                    'theme',
+                    'base',
+                    'components',
+                    'utilities',
+                    'variants',
+                  ] as $layer) {
                     if (isset($required_extention->info['neo'][$layer])) {
+                      // $theme_extension->info['neo'][$layer] = NestedArray::mergeDeep($theme_extension->info['neo'][$layer], $required_extention->info['neo'][$layer]);
+                      // print_r($required_extention->info['neo'][$layer]);
                       $theme_extension->info['neo'][$layer] += $required_extention->info['neo'][$layer];
                     }
                   }
@@ -912,6 +940,7 @@ class DrushCommands extends CoreCommands {
           'base' => [],
           'components' => [],
           'utilities' => [],
+          'variants' => [],
           'safelist' => [],
         ];
       }

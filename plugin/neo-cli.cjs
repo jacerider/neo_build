@@ -13,7 +13,6 @@ const getScopes = function () {
 const runScopes = [];
 
 let target = process.env.npm_config_target || null;
-let env = process.env.npm_config_env || null;
 let scope = process.env.npm_config_scope || null;
 let group = process.env.npm_config_group || null;
 let scopeAll = process.env.npm_config_scope_all || false;

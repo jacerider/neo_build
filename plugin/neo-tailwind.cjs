@@ -29,6 +29,11 @@ module.exports = {
       scopeUtilities = { ...tailwind.utilities, ...scope.tailwind.utilities };
     }
 
+    let scopeVariants;
+    if (typeof tailwind.variants == 'object' && typeof scope.tailwind.variants == 'object') {
+      scopeVariants = { ...tailwind.variants, ...scope.tailwind.variants };
+    }
+
     const process = (layer, theme) => {
       for (const key of Object.keys(layer)) {
         for (const prop of Object.keys(layer[key])) {
@@ -50,7 +55,8 @@ module.exports = {
     }
 
     const config = {
-      darkMode: 'class',
+      // Dark mode is handled by schemes.
+      darkMode: null,
       content: {},
       theme: {},
       safelist: [],
@@ -59,7 +65,7 @@ module.exports = {
         require('@tailwindcss/typography'),
         require('@tailwindcss/aspect-ratio'),
         require('@tailwindcss/container-queries'),
-        plugin(function ({ addBase, addComponents, addUtilities, theme }) {
+        plugin(function ({ addBase, addComponents, addUtilities, addVariant, theme }) {
           if (scopeBase) {
             const base = process(JSON.parse(JSON.stringify(scopeBase)), theme);
             addBase(base);
@@ -71,6 +77,11 @@ module.exports = {
           if (scopeUtilities) {
             const utilities = process(JSON.parse(JSON.stringify(scopeUtilities)), theme);
             addUtilities(utilities);
+          }
+          if (scopeVariants) {
+            for (const [key, value] of Object.entries(scopeVariants)) {
+              addVariant(key, value);
+            }
           }
         }),
       ]
