@@ -200,6 +200,12 @@ declare namespace drupal {
     throwError(error: Error): void;
 
     url: Core.IUrlGenerator;
+
+    debounce(
+      func: Function,
+      wait: number,
+      immediate?: boolean
+    ): Function;
   }
 }
 
