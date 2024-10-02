@@ -2,6 +2,6 @@ name: Neo | Build
 type: module
 description: Build tools including Vite and Tailwind integration.
 package: Neo
-version: 0.0.0
+version: 1.0.8
 core_version_requirement: ^10.3 || ^11
 php: 8.0
