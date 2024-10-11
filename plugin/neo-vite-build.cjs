@@ -91,6 +91,7 @@ export default function neoBuild(scope, group) {
         '**/*.html.twig',
         '**/*.module',
         '**/*.theme',
+        '**/*.component.yml',
       ])) {
         reload(ctx, true);
         return [];

@@ -79,7 +79,7 @@ class DrushCommands extends CoreCommands {
    *
    * @var string
    */
-  protected $tailwindTwigSuffix = '/templates/**/*.twig';
+  protected $tailwindTwigSuffix = '/**/*.twig';
 
   /**
    * The stylelint suffix.
@@ -331,17 +331,23 @@ class DrushCommands extends CoreCommands {
     $dev = Build::getNeoState('dev', FALSE);
     $relativeRoot = './';
     $id = $extension->getName();
+    $path = $extension->getPath();
     // When in contrib dev mode, add all neo* modules to phpstan.
     if ($dev && substr($id, 0, 3) === 'neo' && $group === 'contrib') {
-      $globalConfig['phpstan']['parameters']['paths'][$id] = $docRoot . $extension->getPath();
+      $globalConfig['phpstan']['parameters']['paths'][$id] = $docRoot . $path;
     }
     /** @var \Drupal\Core\Extension\Extension $extension */
     if ($extension->getType() === 'module') {
       $info = $this->moduleExtensionList->getExtensionInfo($id);
       if (!empty($info['neo'])) {
-        $globalConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $extension->getPath() . $this->tailwindSrcSuffix;
-        $globalConfig['tailwind']['content'][$id . ':Module'] = $docRoot . $extension->getPath() . $this->tailwindModuleSuffix;
-        $globalConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $extension->getPath() . $this->tailwindTwigSuffix;
+        $globalConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $path . $this->tailwindSrcSuffix;
+        $globalConfig['tailwind']['content'][$id . ':Module'] = $docRoot . $path . $this->tailwindModuleSuffix;
+        if (is_dir($path . '/templates')) {
+          $globalConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
+        }
+        if (is_dir($path . '/components')) {
+          $globalConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
+        }
         if (is_array($info['neo'])) {
           foreach ([
             'theme',
@@ -366,7 +372,7 @@ class DrushCommands extends CoreCommands {
         // Add all custom themes that extend a neo theme to phpstan.
         $themeGroup = $extension->info['neo']['group'] ?? 'custom';
         if ($themeGroup === 'custom') {
-          $globalConfig['phpstan']['parameters']['paths'][$id] = $docRoot . $extension->getPath();
+          $globalConfig['phpstan']['parameters']['paths'][$id] = $docRoot . $path;
         }
         $themeScopes = $scope;
         if (is_array($extension->info['neo']) && isset($extension->info['neo']['scope'])) {
@@ -376,9 +382,14 @@ class DrushCommands extends CoreCommands {
           $themeScopes = [$themeScopes];
         }
         if (in_array($scope, $themeScopes)) {
-          $scopeConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $extension->getPath() . $this->tailwindSrcSuffix;
-          $scopeConfig['tailwind']['content'][$id . ':Module'] = $docRoot . $extension->getPath() . $this->tailwindModuleSuffix;
-          $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $extension->getPath() . $this->tailwindTwigSuffix;
+          $scopeConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $path . $this->tailwindSrcSuffix;
+          $scopeConfig['tailwind']['content'][$id . ':Module'] = $docRoot . $path . $this->tailwindModuleSuffix;
+          if (is_dir($path . '/templates')) {
+            $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
+          }
+          if (is_dir($path . '/components')) {
+            $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
+          }
         }
         if (is_array($extension->info['neo'])) {
           foreach ([
@@ -399,7 +410,7 @@ class DrushCommands extends CoreCommands {
         }
       }
     }
-    $library_file = $extension->getPath() . '/' . $id . '.libraries.yml';
+    $library_file = $path . '/' . $id . '.libraries.yml';
     if (is_file($this->appRoot . '/' . $library_file)) {
       $libraries = $this->libraryDiscovery->getLibrariesByExtension($id);
       foreach ($libraries as $key => $library) {
@@ -423,10 +434,15 @@ class DrushCommands extends CoreCommands {
           }
           // Process.
           if (!empty($library['css']) || !empty($library['js'])) {
-            $scopeConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $extension->getPath() . $this->tailwindSrcSuffix;
-            $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $extension->getPath() . $this->tailwindTwigSuffix;
+            $scopeConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $path . $this->tailwindSrcSuffix;
+            if (is_dir($path . '/templates')) {
+              $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
+            }
+            if (is_dir($path . '/components')) {
+              $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
+            }
             if ($extension->getType() === 'theme') {
-              $scopeConfig['tailwind']['content'][$id . ':Theme'] = $docRoot . $extension->getPath() . $this->tailwindThemeSuffix;
+              $scopeConfig['tailwind']['content'][$id . ':Theme'] = $docRoot . $path . $this->tailwindThemeSuffix;
             }
           }
           // CSS.
@@ -469,8 +485,8 @@ class DrushCommands extends CoreCommands {
             $globalConfig['groups'][$libraryGroup][$id . ':' . $key . ':Js'] = $js['data'];
             if (substr($js['data'], -3) === '.ts') {
               $globalConfig['ts']['include'][$id . ':' . $key . ':' . 'Js'] = $docRoot . $js['data'];
-              if (is_dir($extension->getPath() . '/src/js/typings')) {
-                $globalConfig['ts']['include'][$id . ':' . $key . ':' . 'Typing'] = $docRoot . $extension->getPath() . '/src/js/typings/*.d.ts';
+              if (is_dir($path . '/src/js/typings')) {
+                $globalConfig['ts']['include'][$id . ':' . $key . ':' . 'Typing'] = $docRoot . $path . '/src/js/typings/*.d.ts';
               }
             }
           }
