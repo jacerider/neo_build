@@ -168,6 +168,12 @@ class DrushCommands extends CoreCommands {
         'parameters' => [
           'level' => 1,
           'paths' => [],
+          'ignoreErrors' => [
+            '#^Unsafe usage of new static#',
+            '#Drupal calls should be avoided in classes, use dependency injection instead#',
+            '#^Plugin definitions cannot be altered.#',
+            '#^Class .* extends @internal class#',
+          ],
         ],
       ],
     ];
