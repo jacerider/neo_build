@@ -363,7 +363,6 @@ class DrushCommands extends CoreCommands {
             'variants',
           ] as $layer) {
             if (isset($info['neo'][$layer])) {
-              // $globalConfig['tailwind'][$layer] = NestedArray::mergeDeep($globalConfig['tailwind'][$layer], $info['neo'][$layer]);
               $globalConfig['tailwind'][$layer] += $info['neo'][$layer];
             }
           }
