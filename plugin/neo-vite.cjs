@@ -1,10 +1,9 @@
 import path from 'path';
-let lastPath = [];
 
 module.exports = {
   buildConfig: (scope) => {
     return {
-      outDir: './',
+      outDir: './_tmp/', // This is not actually used, but it is required.
       emptyOutDir: false,
       sourcemap: true,
       cssCodeSplit: true,
@@ -24,16 +23,13 @@ module.exports = {
       rollupOptions: {
         output: {
           assetFileNames: (entry) => {
-            const { name } = entry;
-            let dir = path.dirname(name);
-            if (dir === '.') {
-              dir = lastPath.shift();
-            }
-            else {
+            const { originalFileName } = entry;
+            if (originalFileName) {
+              let dir = path.dirname(originalFileName);
               dir = dir.replace('web/', '').replace('/src/', '/dist/');
-              lastPath.push(dir);
+              return dir + '/[name].[ext]';
             }
-            return dir + '/[name].[ext]';
+            return '[name].[ext]';
           },
           chunkFileNames: (entry) => {
             const { facadeModuleId } = entry;

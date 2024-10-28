@@ -17,6 +17,10 @@ let scope = process.env.npm_config_scope || null;
 let group = process.env.npm_config_group || null;
 let scopeAll = process.env.npm_config_scope_all || false;
 
+process.on('SIGINT', function() {
+  // Silently catch SIGINT and exit.
+});
+
 if (scopeAll) {
   const scopes = getScopes();
   for (const key in scopes) {
@@ -95,7 +99,6 @@ const cli = async function () {
 
   let prefixDrush = '';
   let suffixVite = '';
-  let timeout = 0;
   let dev = 'enable';
   if (target === 'prod') {
     suffixVite += ' build && tsc';
@@ -122,49 +125,47 @@ const cli = async function () {
           prefixVite += 'NEO_GROUP=' + group + ' ';
         }
 
-        setTimeout(function () {
-          try {
-            execSync(prefixVite + 'vite' + suffixVite, { stdio: 'inherit' });
-            resolve();
+        try {
+          execSync(prefixVite + 'vite' + suffixVite, { stdio: 'inherit' });
+          resolve();
+        }
+        catch (e) {
+          if (target !== 'dev') {
+            return;
           }
-          catch (e) {
-            if (target !== 'dev') {
-              return;
-            }
-            // Build for production.
-            // When running in dev mode, we want to build for production.
-            const doBuild = process.env.NODE_ENV !== 'production' && typeof process.env.VITE_BUILD === 'undefined';
-            let run;
+          // Build for production.
+          // When running in dev mode, we want to build for production.
+          const doBuild = process.env.NODE_ENV !== 'production' && typeof process.env.VITE_BUILD === 'undefined';
+          let run;
+          if (doBuild) {
+            run = `VITE_BUILD=true npm start --target=prod --scope=${scope} --group=${group}`;
+          }
+          else {
+            run = 'drush neo-build-end';
+          }
+          const child = spawn(run, [], { shell: true });
+          if (doBuild) {
+            let dots = '.';
+            child.stdout.on('data', data => {
+              process.stdout.write('  ' + dots + '\r');
+              dots += '.';
+            })
+            child.stderr.on('data', data => {
+              process.stdout.write(`  ${colors.yellow(data.toString())}`)
+            })
+            process.stdout.write(
+              `\n  ${colors.cyan('[neo]')} ${colors.yellow('Building for production...')}\n`
+            );
+          }
+          child.on('close', code => {
             if (doBuild) {
-              run = `VITE_BUILD=true npm start --target=prod --scope=${scope} --group=${group}`;
-            }
-            else {
-              run = 'drush neo-build-end';
-            }
-            const child = spawn(run, [], { shell: true })
-            if (doBuild) {
-              let dots = '.';
-              child.stdout.on('data', data => {
-                process.stdout.write('  ' + dots + '\r');
-                dots += '.';
-              })
-              child.stderr.on('data', data => {
-                process.stdout.write(`  ${colors.yellow(data.toString())}`)
-              })
               process.stdout.write(
-                `\n  ${colors.cyan('[neo]')} ${colors.yellow('Building for production...')}\n`
+                `  ${colors.green('✔')} Production build complete\n`
               );
             }
-            child.on('close', code => {
-              if (doBuild) {
-                process.stdout.write(
-                  `  ${colors.green('✔')} Production build complete\n`
-                );
-              }
-              resolve();
-            });
-          }
-        }, timeout);
+            resolve();
+          });
+        }
       }
       catch (e) {
         reject();

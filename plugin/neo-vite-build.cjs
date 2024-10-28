@@ -63,6 +63,11 @@ export default function neoBuild(scope, group) {
           }
           delete bundle[fileName];
         }
+        // Change the output file path to parent because it currently is pointed
+        // to ./tmp per neo-vite.cjs.
+        for (const outputItem of Object.values(bundle)) {
+          outputItem.fileName = '../' + outputItem.fileName;
+        }
       }
     },
     buildStart: () => {
