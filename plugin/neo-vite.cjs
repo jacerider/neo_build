@@ -90,7 +90,9 @@ module.exports = {
     return {
       preprocessorOptions: {
         scss: {
-          includePaths: scope.vite.scssInclude,
+          api: 'modern-compiler',
+          loadPaths: scope.vite.scssInclude,
+          // includePaths: scope.vite.scssInclude,
           additionalData: scope.vite.scssAdditionalData,
         },
       },
