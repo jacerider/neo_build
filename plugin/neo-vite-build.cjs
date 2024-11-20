@@ -47,7 +47,7 @@ export default function neoBuild(scope, group) {
     name: 'vite:neo-build',
     generateBundle: {
       order: 'post',
-      handler(options, bundle, isWrite) {
+      handler(_options, bundle, _isWrite) {
         for (const [fileName, bundleValue] of Object.entries(bundle)) {
           // We always allow the manifest files to be written. It will
           // include all files even if they are ignored from generation.
