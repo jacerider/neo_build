@@ -70,7 +70,7 @@ function neo_build_page_top(array &$page_top) {
   }
   $cid = 'neo_build:inline' . ($isDevMode ? ':dev' : '');
   if ($cache = \Drupal::cache()->get($cid)) {
-    $css = $cache->data;
+    $data = $cache->data;
   }
   else {
     /** @var \Symfony\Contracts\EventDispatcher\EventDispatcherInterface $eventDispatcher */
@@ -78,14 +78,21 @@ function neo_build_page_top(array &$page_top) {
     $event = new NeoBuildInlineEvent($isDevMode);
     $eventDispatcher->dispatch($event, NeoBuildInlineEvent::EVENT_NAME);
     $css = $event->getCss();
-    Drupal::cache()->set($cid, $css, Cache::PERMANENT, $event->getCacheTags());
+    $data = [
+      'css' => $css,
+      'cache_tags' => $event->getCacheTags(),
+    ];
+    Drupal::cache()->set($cid, $data, Cache::PERMANENT, $data['cache_tags']);
   }
   $page_top['neo_build_dev'] = [
     '#type' => 'html_tag',
     '#tag' => 'style',
-    '#value' => $css,
+    '#value' => $data['css'],
+    '#cache' => [
+      'tags' => $data['cache_tags'],
+    ],
     '#attributes' => [
-      'neo-build-dev' => '',
+      'neo-inline' => '',
     ],
   ];
 }
