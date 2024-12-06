@@ -352,7 +352,7 @@ class DrushCommands extends CoreCommands {
           $globalConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
         }
         if (is_dir($path . '/components')) {
-          $globalConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
+          $globalConfig['tailwind']['content'][$id . ':Components:Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
         }
         if (is_array($info['neo'])) {
           foreach ([
@@ -393,7 +393,7 @@ class DrushCommands extends CoreCommands {
             $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
           }
           if (is_dir($path . '/components')) {
-            $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
+            $scopeConfig['tailwind']['content'][$id . ':Components:Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
           }
         }
         if (is_array($extension->info['neo'])) {
@@ -444,7 +444,7 @@ class DrushCommands extends CoreCommands {
               $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
             }
             if (is_dir($path . '/components')) {
-              $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
+              $scopeConfig['tailwind']['content'][$id . ':Components:Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
             }
             if ($extension->getType() === 'theme') {
               $scopeConfig['tailwind']['content'][$id . ':Theme'] = $docRoot . $path . $this->tailwindThemeSuffix;
