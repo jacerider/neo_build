@@ -67,15 +67,14 @@ class NeoBuildInlineEvent extends Event {
    *
    * @param string $attribute
    *   The CSS attribute.
-   * @param string $value
+   * @param string|array $value
    *   The CSS value.
-   * @param string|null $group
-   *   (optional) The CSS group. Defaults to ':root' if not provided.
+   * @param string $group
+   *   The CSS group. Defaults to ':root' if not provided.
    *
    * @return $this
    */
-  public function addCssValue(string $attribute, string $value, string $group = NULL): self {
-    $group = $group ?? ':root';
+  public function addCssValue(string $attribute, string|array $value, string $group = ':root'): self {
     $this->data[$group][$attribute] = $value;
     return $this;
   }
@@ -98,13 +97,29 @@ class NeoBuildInlineEvent extends Event {
    */
   public function getCss() {
     $css = '';
-    foreach ($this->data as $groupId => $group) {
+    foreach ($this->getData() as $groupId => $group) {
       if (!empty($group)) {
-        $css .= "$groupId{";
-        foreach ($group as $attribute => $value) {
-          $css .= "$attribute: $value;";
+        $strings = array_filter($group, 'is_string');
+        $arrays = array_filter($group, 'is_array');
+        if ($strings) {
+          $css .= "$groupId{";
+          foreach ($strings as $attribute => $value) {
+            $css .= "$attribute: $value;";
+          }
+          $css .= '}';
         }
-        $css .= '}';
+        if ($arrays) {
+          foreach ($arrays as $values) {
+            $strings = array_filter($values, 'is_string');
+            if ($strings) {
+              $css .= "$groupId{";
+              foreach ($strings as $attribute => $value) {
+                $css .= "$attribute: $value;";
+              }
+              $css .= '}';
+            }
+          }
+        }
       }
     }
     return $css;
