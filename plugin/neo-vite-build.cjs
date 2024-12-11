@@ -86,6 +86,7 @@ export default function neoBuild(scope, group) {
       });
     },
     handleHotUpdate: (ctx) => {
+      console.log('hot update', ctx.file);
       if (micromatch.isMatch(ctx.file, [
         '**/*.php',
       ])) {
@@ -93,7 +94,7 @@ export default function neoBuild(scope, group) {
         return [];
       }
       if (micromatch.isMatch(ctx.file, [
-        '**/*.html.twig',
+        '**/*.twig',
         '**/*.module',
         '**/*.theme',
         '**/*.component.yml',
