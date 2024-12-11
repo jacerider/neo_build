@@ -221,7 +221,7 @@ declare namespace drupal {
 
       new (settings: Core.IAjaxElementSettings): IAjax;
 
-      (elementSettings: Core.IAjaxElementSettings): void;
+      (elementSettings: Core.IAjaxElementSettings): IAjax;
 
       instances: IAjax[];
 
