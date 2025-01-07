@@ -35,11 +35,5 @@
     "vite-plugin-checker": "^0.6.4",
     "vite-plugin-sass-glob-import": "^3.0.2",
     "vite-plugin-stylelint": "^5.3.1"
-  },
-  "exports": {
-    "./main": {
-      "import": "./web/dist/main.js",
-      "require": "./web/dist/main.cjs"
-    }
   }
 }

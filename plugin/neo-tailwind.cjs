@@ -16,22 +16,22 @@ module.exports = {
 
     let scopeBase;
     if (typeof tailwind.base == 'object' && typeof scope.tailwind.base == 'object') {
-      scopeBase = { ...tailwind.base, ...scope.tailwind.base };
+      scopeBase = deepMerge(tailwind.base, scope.tailwind.base);
     }
 
     let scopeComponents;
     if (typeof tailwind.components == 'object' && typeof scope.tailwind.components == 'object') {
-      scopeComponents = { ...tailwind.components, ...scope.tailwind.components };
+      scopeComponents = deepMerge(tailwind.components, scope.tailwind.components);
     }
 
     let scopeUtilities;
     if (typeof tailwind.utilities == 'object' && typeof scope.tailwind.utilities == 'object') {
-      scopeUtilities = { ...tailwind.utilities, ...scope.tailwind.utilities };
+      scopeUtilities = deepMerge(tailwind.utilities, scope.tailwind.utilities);
     }
 
     let scopeVariants;
     if (typeof tailwind.variants == 'object' && typeof scope.tailwind.variants == 'object') {
-      scopeVariants = { ...tailwind.variants, ...scope.tailwind.variants };
+      scopeVariants = deepMerge(tailwind.variants, scope.tailwind.variants);
     }
 
     const process = (layer, theme) => {
@@ -90,6 +90,7 @@ module.exports = {
     tailwind.theme = deepMerge(tailwind.theme, scope.tailwind.theme);
     tailwind.content = tailwind.content.concat(scope.tailwind.content);
     tailwind.safelist = tailwind.safelist.concat(scope.tailwind.safelist);
+    // console.log({ ...config, ...scope.tailwind, ...tailwind });
     return { ...config, ...scope.tailwind, ...tailwind };
   }
 }

@@ -38,6 +38,7 @@ Add to .gitignore:
 ```
 # Neo
 /neo.json
+/tsconfig.neo.json
 /.stylelintcache
 ```
 

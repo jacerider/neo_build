@@ -155,9 +155,30 @@ class DrushCommands extends CoreCommands {
       ],
       'tailwind' => [
         'content' => [],
-        'theme' => [],
-        'base' => [],
+        'base' => [
+          ':root' => [],
+          // ':root' => [
+          //   '--spacing-xs' => 'spacing.1',
+          //   '--spacing-sm' => 'spacing.4',
+          //   '--spacing-md' => 'spacing.6',
+          //   '--spacing-lg' => 'spacing.10',
+          //   '--spacing-xl' => 'spacing.16',
+          //   '--spacing-2xl' => 'spacing.24',
+          // ],
+        ],
         'components' => [],
+        'theme' => [
+          // 'extend' => [
+          //   'spacing' => [
+          //     'xs' => 'var(--spacing-xs, 0.375rem)',
+          //     'sm' => 'var(--spacing-sm, 1rem)',
+          //     'md' => 'var(--spacing-md, 1.5rem)',
+          //     'lg' => 'var(--spacing-lg, 2.5rem)',
+          //     'xl' => 'var(--spacing-xl, 4rem)',
+          //     '2xl' => 'var(--spacing-2xl, 6rem)',
+          //   ],
+          // ],
+        ],
         'utilities' => [],
         'variants' => [],
         'safelist' => [],
@@ -186,14 +207,18 @@ class DrushCommands extends CoreCommands {
     }
 
     $scopes = $this->scopeManager->getDefinitions();
+    $scopedExtensions = [];
     foreach ($scopes as $scope => $scope_definition) {
       $this->output()->writeln(dt('<info>[neo]</info> Prepare Scope: @scope', [
         '@scope' => $scope_definition['label'],
       ]));
+      $themes = $this->getScopedThemes((string) $scope);
+      $extensions = array_merge($modules, $themes);
+      $scopedExtensions[$scope] = $extensions;
       $config['scopes'][$scope] = [
         'id' => $scope,
         'label' => $scope_definition['label'],
-      ] + $this->neoBuildScope($modules, (string) $scope, $config);
+      ] + $this->neoBuildScope($extensions, (string) $scope, $config);
     }
 
     $config['ts']['include'] = array_values($config['ts']['include']);
@@ -241,7 +266,7 @@ class DrushCommands extends CoreCommands {
     $config['tailwind']['theme']['colors']['shadow']['dark'] = 'rgb(var(--color-shadow) / <alpha-value>)';
     $config['tailwind']['base'][':root']['--color-shadow'] = '0 0 0';
 
-    $event = new NeoBuildEvent($config, $docRoot);
+    $event = new NeoBuildEvent($config, $scopedExtensions, $docRoot);
     $this->eventDispatcher->dispatch($event, NeoBuildEvent::EVENT_NAME);
     $config = $event->getConfig();
 
@@ -268,7 +293,7 @@ class DrushCommands extends CoreCommands {
   /**
    * Build config scope.
    *
-   * @param \Drupal\Core\Extension\Extension[] $modules
+   * @param \Drupal\Core\Extension\Extension[] $extensions
    *   The modules.
    * @param string $scope
    *   The scope.
@@ -278,7 +303,7 @@ class DrushCommands extends CoreCommands {
    * @return array
    *   The scope config.
    */
-  protected function neoBuildScope(array $modules, string $scope, array &$globalConfig) {
+  protected function neoBuildScope(array $extensions, string $scope, array &$globalConfig) {
     $config = [
       'vite' => [
         'lib' => [],
@@ -288,7 +313,9 @@ class DrushCommands extends CoreCommands {
       'tailwind' => [
         'content' => [],
         'theme' => [],
-        'base' => [],
+        'base' => [
+          ':root' => [],
+        ],
         'components' => [],
         'utilities' => [],
         'variants' => [],
@@ -297,8 +324,6 @@ class DrushCommands extends CoreCommands {
       'stylelint' => [],
     ];
     $relativeRoot = './';
-    $themes = $this->getScopedThemes($scope);
-    $extensions = array_merge($modules, $themes);
     foreach ($extensions as $extension) {
       $this->neoBuildExtension($extension, $scope, $config, $globalConfig);
     }
@@ -351,9 +376,6 @@ class DrushCommands extends CoreCommands {
         if (is_dir($path . '/templates')) {
           $globalConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
         }
-        if (is_dir($path . '/components')) {
-          $globalConfig['tailwind']['content'][$id . ':Components:Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
-        }
         if (is_array($info['neo'])) {
           foreach ([
             'theme',
@@ -361,13 +383,11 @@ class DrushCommands extends CoreCommands {
             'components',
             'utilities',
             'variants',
+            'safelist',
           ] as $layer) {
             if (isset($info['neo'][$layer])) {
-              $globalConfig['tailwind'][$layer] += $info['neo'][$layer];
+              $globalConfig['tailwind'][$layer] = NestedArray::mergeDeep($info['neo'][$layer], $globalConfig['tailwind'][$layer]);
             }
-          }
-          if (isset($info['neo']['safelist'])) {
-            $globalConfig['tailwind']['safelist'] = array_merge($globalConfig['tailwind']['safelist'], $info['neo']['safelist']);
           }
         }
       }
@@ -392,9 +412,6 @@ class DrushCommands extends CoreCommands {
           if (is_dir($path . '/templates')) {
             $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
           }
-          if (is_dir($path . '/components')) {
-            $scopeConfig['tailwind']['content'][$id . ':Components:Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
-          }
         }
         if (is_array($extension->info['neo'])) {
           foreach ([
@@ -403,14 +420,11 @@ class DrushCommands extends CoreCommands {
             'components',
             'utilities',
             'variants',
+            'safelist',
           ] as $layer) {
             if (isset($extension->info['neo'][$layer])) {
-              // $scopeConfig['tailwind'][$layer] = NestedArray::mergeDeep($extension->info['neo'][$layer], $scopeConfig['tailwind'][$layer]);
-              $scopeConfig['tailwind'][$layer] += $extension->info['neo'][$layer];
+              $scopeConfig['tailwind'][$layer] = NestedArray::mergeDeep($extension->info['neo'][$layer], $scopeConfig['tailwind'][$layer]);
             }
-          }
-          if (isset($extension->info['neo']['safelist'])) {
-            $scopeConfig['tailwind']['safelist'] = array_merge($extension->info['neo']['safelist'], $scopeConfig['tailwind']['safelist']);
           }
         }
       }
@@ -442,9 +456,6 @@ class DrushCommands extends CoreCommands {
             $scopeConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $path . $this->tailwindSrcSuffix;
             if (is_dir($path . '/templates')) {
               $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
-            }
-            if (is_dir($path . '/components')) {
-              $scopeConfig['tailwind']['content'][$id . ':Components:Twig'] = $docRoot . $path . '/components' . $this->tailwindTwigSuffix;
             }
             if ($extension->getType() === 'theme') {
               $scopeConfig['tailwind']['content'][$id . ':Theme'] = $docRoot . $path . $this->tailwindThemeSuffix;
@@ -914,8 +925,6 @@ class DrushCommands extends CoreCommands {
                     'variants',
                   ] as $layer) {
                     if (isset($required_extention->info['neo'][$layer])) {
-                      // $theme_extension->info['neo'][$layer] = NestedArray::mergeDeep($theme_extension->info['neo'][$layer], $required_extention->info['neo'][$layer]);
-                      // print_r($required_extention->info['neo'][$layer]);
                       $theme_extension->info['neo'][$layer] += $required_extention->info['neo'][$layer];
                     }
                   }
@@ -958,7 +967,9 @@ class DrushCommands extends CoreCommands {
           'scope' => 'front',
           'group' => 'custom',
           'theme' => [],
-          'base' => [],
+          'base' => [
+            ':root' => [],
+          ],
           'components' => [],
           'utilities' => [],
           'variants' => [],

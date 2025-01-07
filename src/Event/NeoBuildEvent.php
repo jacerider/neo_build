@@ -22,6 +22,13 @@ class NeoBuildEvent extends Event {
   public $config;
 
   /**
+   * The scoped modules/themes.
+   *
+   * @var array
+   */
+  public $scopedExtensions;
+
+  /**
    * The document root.
    *
    * @var string
@@ -33,11 +40,14 @@ class NeoBuildEvent extends Event {
    *
    * @param array $config
    *   The Neo build config.
+   * @param array $scopedExtensions
+   *   The scoped modules/themes.
    * @param string $docRoot
    *   The document root.
    */
-  public function __construct(array $config, string $docRoot) {
+  public function __construct(array $config, array $scopedExtensions, string $docRoot) {
     $this->setConfig($config);
+    $this->scopedExtensions = $scopedExtensions;
     $this->docRoot = $docRoot;
   }
 
@@ -59,6 +69,16 @@ class NeoBuildEvent extends Event {
    */
   public function setConfig(array $config) {
     $this->config = $config;
+  }
+
+  /**
+   * Gets the Neo-enabled modules/themes by scope.
+   *
+   * @return array
+   *   The scoped modules/themes.
+   */
+  public function getScopedExtensions() {
+    return $this->scopedExtensions;
   }
 
   /**
