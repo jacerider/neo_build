@@ -197,6 +197,10 @@ declare namespace drupal {
 
     theme: Core.ITheme;
 
+    editors: any;
+
+    CKEditor5Instances: Map<string, any>;
+
     throwError(error: Error): void;
 
     url: Core.IUrlGenerator;
