@@ -742,7 +742,26 @@ class DrushCommands extends CoreCommands {
     $module_handler = \Drupal::moduleHandler();
     // Flush all persistent caches.
     $module_handler->invokeAll('cache_flush');
-    foreach (Cache::getBins() as $cache_backend) {
+    // Try to figure out the cache bins that need to be cleared.
+    $bins = array_filter(Cache::getBins(), fn ($id) => in_array($id, [
+      // 'static',
+      // 'bootstrap',
+      // 'config',
+      // 'default',
+      // 'entity',
+      // 'menu',
+      'render',
+      // 'access_policy',
+      // 'data',
+      // 'discovery',
+      'dynamic_page_cache',
+      // 'migrate',
+      // 'discovery_migration',
+      // 'neo_config_file',
+      'page',
+      // 'rest',
+    ]), ARRAY_FILTER_USE_KEY);
+    foreach ($bins as $cache_backend) {
       $cache_backend->deleteAll();
     }
     // Clear all plugin caches.
