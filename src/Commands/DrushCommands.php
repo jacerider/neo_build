@@ -136,7 +136,7 @@ class DrushCommands extends CoreCommands {
     private readonly FileUrlGeneratorInterface $fileUrlGenerator,
     private readonly TwigEnvironment $twig,
     private readonly PluginManagerInterface $scopeManager,
-    private readonly PluginManagerInterface $groupManager
+    private readonly PluginManagerInterface $groupManager,
   ) {
     parent::__construct();
   }
