@@ -10,6 +10,7 @@ use Drupal\Component\Serialization\Yaml;
 use Drupal\neo_build\Build;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Asset\LibraryDiscoveryInterface;
+use Drupal\Core\Asset\LibraryDiscoveryParser;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleExtensionList;
@@ -132,6 +133,7 @@ class DrushCommands extends CoreCommands {
     private readonly ModuleHandlerInterface $moduleHandler,
     private readonly ThemeExtensionList $themeExtensionList,
     private readonly LibraryDiscoveryInterface $libraryDiscovery,
+    private readonly LibraryDiscoveryParser $discoveryParser,
     private readonly FileSystemInterface $fileSystem,
     private readonly FileUrlGeneratorInterface $fileUrlGenerator,
     private readonly TwigEnvironment $twig,
@@ -430,9 +432,16 @@ class DrushCommands extends CoreCommands {
     $library_file = $path . '/' . $id . '.libraries.yml';
     if (is_file($this->appRoot . '/' . $library_file)) {
       $libraries = $this->libraryDiscovery->getLibrariesByExtension($id);
+      // We need the unextended libraries to get the correct scope and group
+      // for the library. When libraries are extended by themes, they inherit
+      // the neo settings from whatever extended them, which is incorrect for
+      // the purposes of this command.
+      $unextendedLibraries = $this->discoveryParser->buildByExtension($id);
       foreach ($libraries as $key => $library) {
         $library['key'] = $key;
-        if (!empty($library['neo'])) {
+        $unextendedLibrary = $unextendedLibraries[$key] ?? [];
+        $neoSettings = $unextendedLibrary['neo'] ?? $library['neo'] ?? [];
+        if ($neoSettings) {
           // Includes.
           $this->neoBuildExtensionScssInclude($extension, $library, $scopeConfig, $globalConfig);
           $this->neoBuildExtensionScssRequire($extension, $library, $scopeConfig, $globalConfig);
@@ -442,8 +451,8 @@ class DrushCommands extends CoreCommands {
           }
           else {
             $libraryScopes = $scope;
-            if (is_array($library['neo']) && isset($library['neo']['scope'])) {
-              $libraryScopes = $library['neo']['scope'];
+            if (is_array($neoSettings) && isset($neoSettings['scope'])) {
+              $libraryScopes = $neoSettings['scope'];
             }
             if (!is_array($libraryScopes)) {
               $libraryScopes = [$libraryScopes];
@@ -454,8 +463,8 @@ class DrushCommands extends CoreCommands {
           }
           // Get group.
           $libraryGroup = 'custom';
-          if (is_array($library['neo']) && isset($library['neo']['group'])) {
-            $libraryGroup = $library['neo']['group'];
+          if (is_array($neoSettings) && isset($neoSettings['group'])) {
+            $libraryGroup = $neoSettings['group'];
           }
           // Process.
           if (!empty($library['css']) || !empty($library['js'])) {
