@@ -1,23 +1,56 @@
 #!/bin/bash
 
-ARRAY=()
-while read st file; do
-  if [ "$st" == 'D' ]; then continue; fi
-  if [[ $file =~ (.*)?\.?(scss|js|ts)$ ]]; then
-    ARRAY+=($file)
-  fi
-done < <(git diff --cached --name-status)
-if (( ${#ARRAY[@]} )); then
-  echo "Assets pending compilation:"
-  for i in "${ARRAY[@]}"
-  do
-    echo "- $i"
-    # or do whatever with individual element of the array
-  done
+# Exit codes:
+# 0 - All checks passed
+# 1 - Neo DEV mode active
+# 2 - Debug functions found in PHP files
+
+EXIT_CODE=0
+
+# Check for _neo.lock file at repository root
+if [ -f "_neo.lock" ]; then
+  echo "The _neo.lock file exists at repository root."
+  echo "This means you are in Neo DEV mode."
   echo ""
-  echo "Please compile assets before committing:"
-  echo "- npm run deploy"
-  echo "or"
-  echo "- close development mode"
+  echo "Please exit DEV mode by:"
+  echo ""
+  echo "  - pressing 'ctrl+c' in the terminal window"
+  echo "    that is running the Neo build"
+  echo ""
+  echo "  - running "npm run deploy""
+  echo ""
+  echo "  - running "drush neo-dev-disable""
   exit 1
 fi
+
+# Check PHP files for debug functions
+echo "Checking for debug functions in PHP files..."
+
+# Get list of staged PHP files
+STAGED_PHP_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$')
+
+# If there are PHP files staged, check them for debug functions
+if [ -n "$STAGED_PHP_FILES" ]; then
+  # Search for debug function calls in staged PHP files
+  DEBUG_CALLS=$(grep -l "ksm\s*(" $STAGED_PHP_FILES 2>/dev/null || grep -l "dsm\s*(" $STAGED_PHP_FILES 2>/dev/null || grep -l "kint\s*(" $STAGED_PHP_FILES 2>/dev/null)
+
+  # If debug calls are found, report them
+  if [ -n "$DEBUG_CALLS" ]; then
+    echo "ERROR: Debug function calls found in the following files:"
+    echo "$DEBUG_CALLS" | while read file; do
+      echo "  $file:"
+      grep -n "ksm\s*(" "$file" 2>/dev/null || true
+      grep -n "dsm\s*(" "$file" 2>/dev/null || true
+      grep -n "kint\s*(" "$file" 2>/dev/null || true
+    done
+    echo ""
+    echo "Please remove these debug functions before committing."
+    EXIT_CODE=2
+  else
+    echo "No debug functions found in PHP files."
+  fi
+else
+  echo "No PHP files staged for commit."
+fi
+
+exit $EXIT_CODE

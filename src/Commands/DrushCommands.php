@@ -655,8 +655,8 @@ class DrushCommands extends CoreCommands {
   /**
    * Flag build as started.
    *
-   * @command neo:build:build:start
-   * @usage drush neo:build:build:start
+   * @command neo:build:start
+   * @usage drush neo:build:start
    *   Flag build as started.
    * @aliases neo-build-start
    */
@@ -668,8 +668,8 @@ class DrushCommands extends CoreCommands {
   /**
    * Flag build as ended.
    *
-   * @command neo:build:build:end
-   * @usage drush neo:build:build:enable
+   * @command neo:build:end
+   * @usage drush neo:build:end
    *   Flag build as ended.
    * @aliases neo-build-end
    */
@@ -710,11 +710,18 @@ class DrushCommands extends CoreCommands {
    */
   public function neoBuildDevEnable() {
     Build::setNeoState('dev', TRUE);
+    $root = $this->getRoot();
+
+    // Set pre-commit hook.
     $moduleDir = $this->moduleExtensionList->getPath('neo_build');
     $file = $this->appRoot . '/' . $moduleDir . '/git.pre-commit.txt';
     $data = file_get_contents($file);
-    $this->fileSystem->saveData($data, $this->getRoot() . '/.git/hooks/pre-commit', FileExists::Replace);
-    $this->fileSystem->chmod($this->getRoot() . '/.git/hooks/pre-commit', 0777);
+    $this->fileSystem->saveData($data, $root . '/.git/hooks/pre-commit', FileExists::Replace);
+    $this->fileSystem->chmod($root . '/.git/hooks/pre-commit', 0777);
+
+    // Set lock file.
+    $this->fileSystem->saveData('', $root . '/_neo.lock', FileExists::Replace);
+
     $this->output()->writeln(dt('<info>[neo]</info> Automatic tracking of Neo DEV server enabled.'));
   }
 
@@ -728,7 +735,9 @@ class DrushCommands extends CoreCommands {
    */
   public function neoBuildDevDisable() {
     Build::unsetNeoState('dev');
-    $this->fileSystem->delete($this->getRoot() . '/.git/hooks/pre-commit');
+    $root = $this->getRoot();
+    $this->fileSystem->delete($root . '/.git/hooks/pre-commit');
+    $this->fileSystem->delete($root . '/_neo.lock');
     $this->output()->writeln(dt('<info>[neo]</info> Automatic tracking of Neo DEV server disabled.'));
   }
 
