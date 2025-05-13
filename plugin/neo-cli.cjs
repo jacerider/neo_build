@@ -199,8 +199,15 @@ function initializeState() {
     state.runScopes.push(state.scope);
   }
 
+  let count = 0;
   // Silently catch SIGINT and exit.
-  process.on('SIGINT', () => {});
+  process.on('SIGINT', () => {
+    if (count > 0) {
+      console.log(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Exiting...`);
+      process.exit(0);
+    }
+    count++;
+  });
 }
 
 /**
