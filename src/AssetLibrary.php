@@ -140,6 +140,20 @@ class AssetLibrary {
   }
 
   /**
+   * Returns library id.
+   */
+  public function getLibraryId(): string {
+    return $this->libraryId;
+  }
+
+  /**
+   * Returns library extension (module/theme) id.
+   */
+  public function getExtensionId(): string {
+    return $this->extension;
+  }
+
+  /**
    * Returns drupal asset library definition.
    */
   public function getDefinition(): array {
@@ -209,7 +223,6 @@ class AssetLibrary {
         ];
       }
     }
-    // }
     return $manifestScaffold;
   }
 
