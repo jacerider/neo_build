@@ -5,7 +5,7 @@
  * A command-line tool for Drupal Neo build operations
  */
 
-const { execSync, spawn } = require('child_process');
+const { execSync } = require('child_process');
 const colors = require('picocolors');
 const prompts = require('@inquirer/prompts');
 
@@ -62,6 +62,14 @@ function execAndShow(command) {
   }
 }
 
+function clear() {
+  try {
+    process.stdout.write('\x1Bc');
+  } catch (error) {
+    console.error('Error clearing screen:', error);
+  }
+}
+
 /**
  * Get available scopes from Drupal
  * @returns {Object} Available scopes
@@ -101,6 +109,15 @@ function setDevMode(mode) {
 }
 
 /**
+ * Call for cleanup
+ * @param {string} mode - 'enable' or 'disable'
+ */
+function cleanup() {
+  const command = `drush neo-dev-cleanup`;
+  execAndShow(command);
+}
+
+/**
  * Run Drupal Neo command for a scope and group
  * @param {string} scope - The scope
  * @param {string} group - The group (optional)
@@ -108,6 +125,17 @@ function setDevMode(mode) {
 function runDrushNeo(scope, group) {
   const groupParam = group ? ` ${group}` : '';
   const command = `${CONFIG.commands.drushNeo} ${scope}${groupParam}`;
+  execAndShow(command);
+}
+
+/**
+ * Run Vite for production
+ * @param {string} group - The group
+ */
+async function runViteProd(group) {
+  clear();
+  console.log(`\n${colors.cyan('[neo]')} ${colors.yellow('Building for production...')}`);
+  const command = `VITE_BUILD=true npm start --target=prod --scope-all --group=${group}`;
   execAndShow(command);
 }
 
@@ -120,70 +148,18 @@ function runDrushNeo(scope, group) {
  */
 async function runVite(scope, target, group) {
   return new Promise((resolve, reject) => {
-    try {
-      let env = `NEO_SCOPE=${scope} `;
-      if (group) {
-        env += `NEO_GROUP=${group} `;
-      }
-
-      let viteCommand = CONFIG.commands.vite;
-      if (target === 'prod') {
-        viteCommand += ' build && tsc';
-      }
-
-      const success = execAndShow(`${env}${viteCommand}`);
-
-      if (success || target !== 'dev') {
-        resolve();
-        return;
-      }
-
-      // For dev mode failures, run production build if needed
-      const doBuild = process.env.NODE_ENV !== 'production' &&
-                     typeof process.env.VITE_BUILD === 'undefined';
-
-      const command = doBuild
-        ? `VITE_BUILD=true npm start --target=prod --scope-all --group=${group}`
-        : CONFIG.commands.drushBuildEnd;
-
-      console.log(`\n  ${colors.cyan('[neo]')} ${colors.yellow('Building for production...')}`);
-
-      const child = spawn(command, [], { shell: true });
-
-      if (doBuild) {
-        let dots = '.';
-        const interval = setInterval(() => {
-          process.stdout.write(`  ${dots}\r`);
-          dots += '.';
-          if (dots.length > 5) dots = '.';
-        }, 1000);
-
-        child.stdout.on('data', data => {
-          clearInterval(interval);
-          process.stdout.write(`  ${dots}\r`);
-          dots += '.';
-        });
-
-        child.stderr.on('data', data => {
-          process.stdout.write(`  ${colors.yellow(data.toString())}`);
-        });
-      }
-
-      child.on('close', code => {
-        if (doBuild) {
-          console.log(`  ${colors.green('✔')} Production build complete`);
-        }
-        resolve();
-      });
-
-      child.on('error', (error) => {
-        console.error(`  ${colors.red('✘')} Build failed:`, error.message);
-        reject(error);
-      });
-    } catch (error) {
-      console.log(error);
-      reject(error);
+    let env = `NEO_SCOPE=${scope} `;
+    if (group) {
+      env += `NEO_GROUP=${group} `;
     }
+
+    let viteCommand = CONFIG.commands.vite;
+    if (target !== 'dev') {
+      viteCommand += ' build && tsc';
+    }
+
+    execAndShow(`${env}${viteCommand}`);
+    resolve();
   });
 }
 
@@ -203,7 +179,6 @@ function initializeState() {
   // Silently catch SIGINT and exit.
   process.on('SIGINT', () => {
     if (count > 0) {
-      console.log(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Exiting...`);
       process.exit(0);
     }
     count++;
@@ -282,7 +257,6 @@ async function promptForGroup() {
  */
 async function cli() {
   try {
-    console.log(`${colors.cyan('[neo]')} ${colors.yellow('Build CLI')}\n`);
 
     initializeState();
 
@@ -294,7 +268,12 @@ async function cli() {
     // Set dev mode based on target
     const devMode = state.target === 'prod' ? false : true;
     if (devMode) {
+      clear();
+      console.log(`${colors.cyan('[neo]')} ${colors.yellow('Build CLI')}\n`);
       setDevMode('enable');
+    }
+    else {
+      setDevMode('disable');
     }
 
     // Run Drupal Neo command for each scope
@@ -309,9 +288,13 @@ async function cli() {
 
     await Promise.all(scopePromises);
     if (!devMode) {
-      setDevMode('disable');
+      cleanup();
+      console.log(`\n${colors.green('✔')} ${colors.cyan('[neo]')} All builds completed successfully`);
+      process.exit(1);
     }
-    console.log(`\n${colors.green('✔')} ${colors.cyan('[neo]')} All builds completed successfully`);
+    else {
+      runViteProd(state.group);
+    }
   } catch (error) {
     console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed:`, error.message);
     process.exit(1);

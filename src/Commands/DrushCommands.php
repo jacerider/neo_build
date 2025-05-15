@@ -215,7 +215,7 @@ class DrushCommands extends CoreCommands {
     $scopedExtensions = [];
     $scopes = $this->scopeManager->getDefinitions();
     foreach ($scopes as $scope => $scope_definition) {
-      $this->output()->writeln(dt('<info>[neo]</info> Prepare Scope: @scope', [
+      $this->output()->writeln(dt('<info>  [neo]</info> Prepare Scope: @scope', [
         '@scope' => $scope_definition['label'],
       ]));
       $themes = $this->getScopedThemes((string) $scope);
@@ -306,7 +306,8 @@ class DrushCommands extends CoreCommands {
     // Anything that remains goes in neo.
     $this->fileSystem->saveData(json_encode($config, JSON_PRETTY_PRINT), $root . '/neo.json', FileExists::Replace);
 
-    $this->output()->writeln(dt('<info>[neo]</info> Prepare Success'));
+    $this->output()->writeln(dt('<info>✔ [neo]</info> Prepare Success'));
+    $this->output()->writeln('');
 
     Cache::invalidateTags(['exo_build:build']);
   }
@@ -575,7 +576,7 @@ class DrushCommands extends CoreCommands {
             $pathinfo = pathinfo($location . '/' . $file);
             if ($pathinfo['extension'] === 'scss') {
               $name = $pathinfo['filename'];
-              $this->output()->writeln(dt('<info>[neo]</info> Sass Include'));
+              $this->output()->writeln(dt('  <info>[neo]</info> Sass Include'));
               $this->output()->writeln(dt('    File: <comment>"@info"</comment>', ['@info' => $relativeRoot . $location . '/' . $file]));
               $this->output()->writeln(dt('    Use: <comment>"@info"</comment>', ['@info' => "@use '$name';"]));
             }
@@ -709,20 +710,22 @@ class DrushCommands extends CoreCommands {
    * @aliases neo-dev-enable
    */
   public function neoBuildDevEnable() {
-    Build::setNeoState('dev', TRUE);
-    $root = $this->getRoot();
+    if (!$this->neoBuildDevEnabled()) {
+      Build::setNeoState('dev', TRUE);
+      $root = $this->getRoot();
 
-    // Set pre-commit hook.
-    $moduleDir = $this->moduleExtensionList->getPath('neo_build');
-    $file = $this->appRoot . '/' . $moduleDir . '/git.pre-commit.txt';
-    $data = file_get_contents($file);
-    $this->fileSystem->saveData($data, $root . '/.git/hooks/pre-commit', FileExists::Replace);
-    $this->fileSystem->chmod($root . '/.git/hooks/pre-commit', 0777);
+      // Set pre-commit hook.
+      $moduleDir = $this->moduleExtensionList->getPath('neo_build');
+      $file = $this->appRoot . '/' . $moduleDir . '/git.pre-commit.txt';
+      $data = file_get_contents($file);
+      $this->fileSystem->saveData($data, $root . '/.git/hooks/pre-commit', FileExists::Replace);
+      $this->fileSystem->chmod($root . '/.git/hooks/pre-commit', 0777);
 
-    // Set lock file.
-    $this->fileSystem->saveData('', $root . '/_neo.lock', FileExists::Replace);
+      // Set lock file.
+      $this->fileSystem->saveData('', $root . '/_neo.lock', FileExists::Replace);
 
-    $this->output()->writeln(dt('<info>[neo]</info> Automatic tracking of Neo DEV server enabled.'));
+      $this->output()->writeln(dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server enabled.'));
+    }
   }
 
   /**
@@ -734,11 +737,26 @@ class DrushCommands extends CoreCommands {
    * @aliases neo-dev-disable
    */
   public function neoBuildDevDisable() {
-    Build::unsetNeoState('dev');
+    if ($this->neoBuildDevEnabled()) {
+      Build::unsetNeoState('dev');
+      $this->output()->writeln(dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server disabled.'));
+    }
+  }
+
+  /**
+   * Cleanup files created during build.
+   *
+   * @command neo:build:dev:cleanup
+   * @usage drush neo:build:dev:cleanup
+   *   Cleanup files created during build.
+   * @aliases neo-dev-cleanup
+   */
+  public function neoBuildCleanup() {
     $root = $this->getRoot();
     $this->fileSystem->delete($root . '/.git/hooks/pre-commit');
     $this->fileSystem->delete($root . '/_neo.lock');
-    $this->output()->writeln(dt('<info>[neo]</info> Automatic tracking of Neo DEV server disabled.'));
+    $this->output()->writeln('');
+    $this->output()->writeln(dt('<info>✔ [neo]</info> Build cleanup complete.'));
   }
 
   /**
