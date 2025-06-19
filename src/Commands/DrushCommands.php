@@ -757,6 +757,17 @@ class DrushCommands extends CoreCommands {
     $this->fileSystem->delete($root . '/_neo.lock');
     $this->output()->writeln('');
     $this->output()->writeln(dt('<info>✔ [neo]</info> Build cleanup complete.'));
+
+    // Update compiled versions.
+    $config_factory = \Drupal::configFactory();
+    $config = $config_factory->getEditable('neo_build.info');
+    $extensions = neo_build_get_extensions();
+    foreach ($extensions as $name => $info) {
+      $version = $info['version'] ?? '0.0.0';
+      $config->set('versions.' . $name, $version);
+    }
+    $config->save();
+    $this->output()->writeln(dt('<info>✔ [neo]</info> Neo build versions updated.'));
   }
 
   /**

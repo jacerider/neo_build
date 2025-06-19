@@ -1,0 +1,79 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Neo Build module.
+ */
+
+use Drupal\Core\Site\Settings;
+use Drupal\Component\Render\FormattableMarkup;
+
+/**
+ * Implements hook_requirements().
+ */
+function neo_build_requirements($phase) {
+  $requirements = [];
+
+  if ($phase == 'runtime') {
+    // $config_factory = \Drupal::configFactory();
+    // $config = $config_factory->getEditable('neo_build.info');
+    $config = \Drupal::config('neo_build.info');
+    $extensions = [];
+    $versions = [];
+    $builtVersions = [];
+
+    $extensions = neo_build_get_extensions();
+
+    foreach ($extensions as $name => $info) {
+      $versions[$name] = $info['version'] ?? '0.0.0';
+      $builtVersions[$name] = $config->get('versions.' . $name) ?? NULL;
+    }
+
+    $requirements['neo_build'] = [
+      'title' => t('Neo Build'),
+      'value' => t('Wow'),
+      'description' => [
+        '#type' => 'table',
+        '#header' => [
+          'extension' => t('Extension'),
+          'version' => t('Installed Version'),
+          'built_version' => t('Built Version'),
+        ],
+        '#neo_style' => [
+          'version' => 'xs',
+          'built_version' => 'xs',
+        ],
+        '#neo_size' => [
+          'version' => 'min',
+          'built_version' => 'min',
+        ],
+      ],
+    ];
+
+    foreach ($extensions as $name => $info) {
+      $currentVersion = $versions[$name] ?? '0.0.0';
+      $newVersion = $builtVersions[$name] ?? NULL;
+      $row = [
+        'extension' => $info['name'],
+        'version' => $currentVersion,
+        'built_version' => [
+          'data' => [
+            '#prefix' => '<span class="text-success">',
+            '#suffix' => '</span>',
+            '#markup' => $newVersion ? $newVersion : t('All modules and themes that support Neo Build are compiled.'),
+          ],
+        ],
+      ];
+      if (!$newVersion || version_compare($currentVersion, $newVersion, '<')) {
+        $requirements['neo_build']['severity'] = REQUIREMENT_ERROR;
+        $requirements['neo_build']['value'] = t('Some modules or themes that require Neo Build have not been compiled or have been updated since the last compile. Please run the Neo build command <code>(npm run deploy)</code>.');
+        $row['built_version']['data']['#prefix'] = '<span class="text-alert">';
+      }
+      $requirements['neo_build']['description']['#rows'][] = [
+        'data' => $row,
+      ];
+    }
+  }
+
+  return $requirements;
+}

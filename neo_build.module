@@ -105,3 +105,39 @@ function neo_build_page_top(array &$page_top) {
 function neo_build_preprocess_maintenance_page(array &$variables) {
   neo_build_page_top($variables['page']['content']);
 }
+
+/**
+ * Get the info for extensions that support Neo Build.
+ *
+ * @return array
+ *   An array of extensions with Neo Build support.
+ */
+function neo_build_get_extensions() {
+  // Get Neo module info.
+  $moduleExtensionList = \Drupal::service('extension.list.module');
+  $moduleHandler = \Drupal::moduleHandler();
+  $modules = array_filter($moduleHandler->getModuleList(), function ($extension) use ($moduleHandler, $moduleExtensionList) {
+    return $moduleHandler->moduleExists($extension->getName());
+  });
+  foreach ($modules as $name => $module) {
+    $info = $moduleExtensionList->getExtensionInfo($name);
+    if (!empty($info['neo'])) {
+      $extensions[$name] = $info;
+    }
+  }
+
+  // Get Neo theme info.
+  $themes = array_filter(\Drupal::service('extension.list.theme')->getList(), function ($extension) {
+    /** @var \Drupal\Core\Extension\Extension $extension */
+    return $extension->status;
+    // return $extension->isEnabled();
+  });
+  foreach ($themes as $name => $theme) {
+    $info = $theme->info;
+    if (!empty($info['neo'])) {
+      $extensions[$name] = $info;
+    }
+  }
+  ksort($extensions);
+  return $extensions;
+}
