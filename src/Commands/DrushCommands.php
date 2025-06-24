@@ -195,12 +195,22 @@ class DrushCommands extends CoreCommands {
         'parameters' => [
           'level' => 1,
           'paths' => [],
+          'fileExtensions' => [
+            'php',
+            'module',
+            'inc',
+            'install',
+            'theme',
+          ],
           'ignoreErrors' => [
             '#^Unsafe usage of new static#',
             '#Drupal calls should be avoided in classes, use dependency injection instead#',
             '#^Plugin definitions cannot be altered.#',
             '#^Class .* extends @internal class#',
           ],
+        ],
+        'includes' => [
+          'vendor/mglaman/phpstan-drupal/extension.neon',
         ],
       ],
     ];
@@ -310,6 +320,17 @@ class DrushCommands extends CoreCommands {
     $this->output()->writeln('');
 
     Cache::invalidateTags(['exo_build:build']);
+
+    $this->output()->writeln(dt('<info>  [neo]</info> Setup GrumPHP'));
+    $this->output()->writeln(dt('        If not already configured, run the following commands from the project root:'));
+    foreach ([
+      'ddev exec grumphp git:init',
+      'ddev exec grumphp git:pre-commit',
+    ] as $command) {
+      $this->output()->writeln(dt('        - "@command"', [
+        '@command' => $command,
+      ]));
+    }
   }
 
   /**
