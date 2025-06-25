@@ -321,9 +321,10 @@ class DrushCommands extends CoreCommands {
 
     Cache::invalidateTags(['exo_build:build']);
 
-    $this->output()->writeln(dt('<info>  [neo]</info> Setup GrumPHP'));
-    $this->output()->writeln(dt('        If not already configured, run the following commands from the project root:'));
+    $this->output()->writeln(dt('<info>  [neo]</info> *optional* Setup GrumPHP'));
+    $this->output()->writeln(dt('        Run the following commands from the project root:'));
     foreach ([
+      'composer require --dev jacerider/grumphp-drupal',
       'ddev exec grumphp git:init',
       'ddev exec grumphp git:pre-commit',
     ] as $command) {
