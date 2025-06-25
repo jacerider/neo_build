@@ -320,18 +320,6 @@ class DrushCommands extends CoreCommands {
     $this->output()->writeln('');
 
     Cache::invalidateTags(['exo_build:build']);
-
-    $this->output()->writeln(dt('<info>  [neo]</info> *optional* Setup GrumPHP'));
-    $this->output()->writeln(dt('        Run the following commands from the project root:'));
-    foreach ([
-      'composer require --dev jacerider/grumphp-drupal',
-      'ddev exec grumphp git:init',
-      'ddev exec grumphp git:pre-commit',
-    ] as $command) {
-      $this->output()->writeln(dt('        - "@command"', [
-        '@command' => $command,
-      ]));
-    }
   }
 
   /**
@@ -505,6 +493,7 @@ class DrushCommands extends CoreCommands {
               $this->messenger->addError($this->t('The library @id is trying to use Neo but specified more than 1 CSS file. This is not supported.', [
                 '@id' => $id . ':' . $key,
               ]));
+              $this->messenger->addError(print_r($library['css'], TRUE));
               continue;
             }
             $css = reset($library['css']);
@@ -520,7 +509,7 @@ class DrushCommands extends CoreCommands {
                 if (!empty($match[3])) {
                   foreach (glob(dirname($relativeRoot . $css['data']) . '/' . $match[3]) as $importKey => $importPath) {
                     $importPath = str_replace($relativeRoot, $docRoot, $importPath);
-                    $scopeConfig['stylelint'][$id . ':' . $key . ':Css' . ':' . $importKey] = $importPath;
+                    $scopeConfig['stylelint'][$id . ':' . $key . ':Css:' . $importKey] = $importPath;
                   }
                 }
               }
@@ -532,15 +521,16 @@ class DrushCommands extends CoreCommands {
               $this->messenger->addError($this->t('The library @id is trying to use Neo but specified more than 1 Javascript file. This is not supported.', [
                 '@id' => $id . ':' . $key,
               ]));
+              $this->messenger->addError(print_r($library['js'], TRUE));
               continue;
             }
             $js = reset($library['js']);
-            $scopeConfig['vite']['lib'][$id . ':' . $key . ':' . 'Js'] = $relativeRoot . $js['data'];
+            $scopeConfig['vite']['lib'][$id . ':' . $key . ':Js'] = $relativeRoot . $js['data'];
             $globalConfig['groups'][$libraryGroup][$id . ':' . $key . ':Js'] = $js['data'];
             if (substr($js['data'], -3) === '.ts') {
-              $globalConfig['ts']['include'][$id . ':' . $key . ':' . 'Js'] = $docRoot . $js['data'];
+              $globalConfig['ts']['include'][$id . ':' . $key . ':Js'] = $docRoot . $js['data'];
               if (is_dir($path . '/src/js/typings')) {
-                $globalConfig['ts']['include'][$id . ':' . $key . ':' . 'Typing'] = $docRoot . $path . '/src/js/typings/*.d.ts';
+                $globalConfig['ts']['include'][$id . ':' . $key . ':Typing'] = $docRoot . $path . '/src/js/typings/*.d.ts';
               }
             }
           }
@@ -590,7 +580,7 @@ class DrushCommands extends CoreCommands {
           }
           $location = $pathinfo['dirname'];
           $scopeConfig['vite']['scssInclude'][] = $docRoot . $location;
-          $scopeConfig['stylelint'][$id . ':' . $key . ':' . 'Include'] = $docRoot . $location . $this->stylelintSuffix;
+          $scopeConfig['stylelint'][$id . ':' . $key . ':Include'] = $docRoot . $location . $this->stylelintSuffix;
           $files[] = $pathinfo['basename'];
         }
         if ($isDev) {
@@ -646,7 +636,7 @@ class DrushCommands extends CoreCommands {
           '-',
         ], ' ', $name));
         $scopeConfig['vite']['scssInclude'][] = $docRoot . $directory;
-        $scopeConfig['stylelint'][$id . ':' . $key . ':' . 'Require'] = $docRoot . $directory . $this->stylelintSuffix;
+        $scopeConfig['stylelint'][$id . ':' . $key . ':Require'] = $docRoot . $directory . $this->stylelintSuffix;
         $scopeConfig['vite']['scssAdditionalData'][] = "@use '$name' as $alias;\n";
         if ($isDev) {
           $this->output()->writeln(dt('<info>[neo]</info> Sass Require'));
@@ -703,11 +693,8 @@ class DrushCommands extends CoreCommands {
     Cache::invalidateTags(['library_info', 'theme_registry']);
     // Flush asset file caches.
     // phpcs:disable
-    // @phpstan-ignore-next-line
     \Drupal::service('asset.css.collection_optimizer')->deleteAll();
-    // @phpstan-ignore-next-line
     \Drupal::service('asset.js.collection_optimizer')->deleteAll();
-    // @phpstan-ignore-next-line
     \Drupal::service('asset.query_string')->reset();
     // phpcs:enable
     $this->output()->writeln(dt('<info>[neo]</info> Build has ended.'));
@@ -807,7 +794,6 @@ class DrushCommands extends CoreCommands {
     // not passed in, which is sufficient, since new extensions cannot have any
     // primed caches yet.
     // phpcs:disable
-    // @phpstan-ignore-next-line
     $module_handler = \Drupal::moduleHandler();
     // Flush all persistent caches.
     $module_handler->invokeAll('cache_flush');
@@ -834,7 +820,6 @@ class DrushCommands extends CoreCommands {
       $cache_backend->deleteAll();
     }
     // Clear all plugin caches.
-    // @phpstan-ignore-next-line
     \Drupal::service('plugin.cache_clearer')->clearCachedDefinitions();
     // phpcs:enable
   }
@@ -947,6 +932,18 @@ class DrushCommands extends CoreCommands {
       }
     }
     $this->output()->writeln(dt('<info>[neo]</info> Neo is ready. Please run "npm install" from project root.'));
+
+    $this->output()->writeln(dt('<info>  [neo]</info> Setup GrumPHP (optional)'));
+    $this->output()->writeln(dt('        Run the following commands from the project root:'));
+    foreach ([
+      'composer require --dev jacerider/grumphp-drupal',
+      'ddev exec grumphp git:init',
+      'ddev exec grumphp git:pre-commit',
+    ] as $command) {
+      $this->output()->writeln(dt('        - "@command"', [
+        '@command' => $command,
+      ]));
+    }
   }
 
   /**
