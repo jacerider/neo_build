@@ -113,10 +113,11 @@ function neo_build_preprocess_maintenance_page(array &$variables) {
  *   An array of extensions with Neo Build support.
  */
 function neo_build_get_extensions() {
+  $extensions = [];
   // Get Neo module info.
   $moduleExtensionList = \Drupal::service('extension.list.module');
   $moduleHandler = \Drupal::moduleHandler();
-  $modules = array_filter($moduleHandler->getModuleList(), function ($extension) use ($moduleHandler, $moduleExtensionList) {
+  $modules = array_filter($moduleHandler->getModuleList(), function ($extension) use ($moduleHandler) {
     return $moduleHandler->moduleExists($extension->getName());
   });
   foreach ($modules as $name => $module) {
