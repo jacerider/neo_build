@@ -114,6 +114,9 @@ function neo_build_preprocess_maintenance_page(array &$variables) {
  */
 function neo_build_get_extensions() {
   $extensions = [];
+  $libraryDiscovery = \Drupal::service('library.discovery');
+  $libraryDiscoveryParser = \Drupal::service('library.discovery.parser');
+
   // Get Neo module info.
   $moduleExtensionList = \Drupal::service('extension.list.module');
   $moduleHandler = \Drupal::moduleHandler();
@@ -124,6 +127,13 @@ function neo_build_get_extensions() {
     $info = $moduleExtensionList->getExtensionInfo($name);
     if (!empty($info['neo'])) {
       $extensions[$name] = $info;
+    }
+    else {
+      foreach ($libraryDiscoveryParser->buildByExtension($name) as $library) {
+        if (!empty($library['neo'])) {
+          $extensions[$name] = $info;
+        }
+      }
     }
   }
 
@@ -137,6 +147,13 @@ function neo_build_get_extensions() {
     $info = $theme->info;
     if (!empty($info['neo'])) {
       $extensions[$name] = $info;
+    }
+    else {
+      foreach ($libraryDiscoveryParser->buildByExtension($name) as $library) {
+        if (!empty($library['neo'])) {
+          $extensions[$name] = $info;
+        }
+      }
     }
   }
   ksort($extensions);

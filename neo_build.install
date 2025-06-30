@@ -5,9 +5,6 @@
  * Install, update and uninstall functions for the Neo Build module.
  */
 
-use Drupal\Core\Site\Settings;
-use Drupal\Component\Render\FormattableMarkup;
-
 /**
  * Implements hook_requirements().
  */
@@ -15,8 +12,6 @@ function neo_build_requirements($phase) {
   $requirements = [];
 
   if ($phase == 'runtime') {
-    // $config_factory = \Drupal::configFactory();
-    // $config = $config_factory->getEditable('neo_build.info');
     $config = \Drupal::config('neo_build.info');
     $extensions = [];
     $versions = [];
@@ -64,7 +59,7 @@ function neo_build_requirements($phase) {
           ],
         ],
       ];
-      if (!$newVersion || version_compare($currentVersion, $newVersion, '<')) {
+      if (!$newVersion || version_compare($currentVersion, $newVersion, '>')) {
         $requirements['neo_build']['severity'] = REQUIREMENT_ERROR;
         $requirements['neo_build']['value'] = t('Some modules or themes that require Neo Build have not been compiled or have been updated since the last compile. Please run the Neo build command <code>(npm run deploy)</code>.');
         $row['built_version']['data']['#prefix'] = '<span class="text-alert">';
