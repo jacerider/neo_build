@@ -1,0 +1,9 @@
+neo_build.info:
+  type: mapping
+  label: Build Info
+  mapping:
+    versions:
+      type: sequence
+      label: Versions
+      sequence:
+        type: string
