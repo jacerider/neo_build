@@ -908,9 +908,9 @@ class DrushCommands extends CoreCommands {
       'stylelint.config.cjs.install' => $docRoot,
       'prettier.config.cjs.install' => $docRoot,
       'postcss.config.cjs.install' => $docRoot,
-      'tailwind.config.cjs.install' => $docRoot,
+      'tailwind.config.mjs.install' => $docRoot,
       'tsconfig.json.install' => $docRoot,
-      'vite.config.js.install' => $docRoot,
+      'vite.config.mjs.install' => $docRoot,
     ];
     $tokens = [
       '[DOC-ROOT]' => $docRoot,
