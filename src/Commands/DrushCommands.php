@@ -144,6 +144,60 @@ class DrushCommands extends CoreCommands {
   }
 
   /**
+   * Clone a template into a theme from neo_base.
+   *
+   * @command neo:template
+   * @usage drush neo:template
+   *   Run the neoBuild template generator.
+   * @aliases neo-template
+   *
+   * @throws \Exception
+   *   If no index or no server were passed or passed values are invalid.
+   */
+  public function neoTemplate() {
+    // $docRoot = './' . Build::getNeoSetting('docroot');
+    // print $docRoot;
+    $themeId = $this->io()->choice(dt('Select the theme:'), [
+      'front' => dt('Front Theme'),
+      'back' => dt('Back Theme'),
+    ]);
+    $baseTheme = $this->themeExtensionList->get('neo_base');
+    $baseThemePath = $baseTheme->getPath();
+    $theme = $this->themeExtensionList->get($themeId);
+    $themePath = $theme->getPath();
+    /** @var \Drupal\Core\File\FileSystemInterface $file_system */
+    $fileSystem = \Drupal::service('file_system');
+    $files = $fileSystem->scanDirectory($baseThemePath . '/templates', '/.*\.html.twig.example$/');
+    if (!$files) {
+      $this->io()->error(dt('No template files found.'));
+      return;
+    }
+    $fileOptions = [];
+    foreach ($files as $file) {
+      $fileOptions[$file->uri] = str_replace('.example', '', $file->filename);
+    }
+    $fileUri = $this->io()->choice(dt('Select the template file:'), $fileOptions);
+
+    $variationName = $this->io()->ask('Template variation name', required: TRUE, validate: function ($answer) {
+      if (!preg_match('/^[\-a-z]+[\-a-z0-9]*$/', $answer)) {
+        return 'Only lowercase alphanumeric chars/dashes allowed; only letters/dashes allowed as first character.';
+      }
+    });
+
+    $destination = str_replace($baseThemePath, $themePath, $fileUri);
+    $destination = str_replace('.html.twig.example', '--' . $variationName . '.html.twig', $destination);
+
+    if (file_exists($destination)) {
+      $this->io()->error(dt('The template file @file already exists.', ['@file' => $destination]));
+      return;
+    }
+
+    $fileSystem->prepareDirectory(dirname($destination), FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
+    $fileSystem->copy($fileUri, $destination);
+    $this->io()->success(dt('Template file @file created successfully.', ['@file' => $destination]));
+  }
+
+  /**
    * Generate vite.config.json.
    *
    * @command neo:build
