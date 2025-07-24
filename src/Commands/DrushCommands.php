@@ -1065,7 +1065,7 @@ class DrushCommands extends CoreCommands {
                 if (is_array($required_extention->info['neo'])) {
                   foreach (array_keys($this->tailwindDefault) as $layer) {
                     if (isset($required_extention->info['neo'][$layer])) {
-                      $theme_extension->info['neo'][$layer] = array_merge($theme_extension->info['neo'][$layer], $required_extention->info['neo'][$layer]);
+                      $theme_extension->info['neo'][$layer] = array_merge($theme_extension->info['neo'][$layer] ?? [], $required_extention->info['neo'][$layer]);
                     }
                   }
                 }
