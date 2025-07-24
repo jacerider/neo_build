@@ -68,14 +68,15 @@ function neo_build_page_top(array &$page_top) {
     // Disable big pipe while in dev mode.
     \Drupal::routeMatch()->getRouteObject()->setOption('_no_big_pipe', TRUE);
   }
-  $cid = 'neo_build:inline' . ($isDevMode ? ':dev' : '');
+  $themeName = \Drupal::service('theme.manager')->getActiveTheme()->getName();
+  $cid = 'neo_build:inline:' . $themeName . ':' . ($isDevMode ? ':dev' : '');
   if ($cache = \Drupal::cache()->get($cid)) {
     $data = $cache->data;
   }
   else {
     /** @var \Symfony\Contracts\EventDispatcher\EventDispatcherInterface $eventDispatcher */
     $eventDispatcher = \Drupal::service('event_dispatcher');
-    $event = new NeoBuildInlineEvent($isDevMode);
+    $event = new NeoBuildInlineEvent($themeName, $isDevMode);
     $eventDispatcher->dispatch($event, NeoBuildInlineEvent::EVENT_NAME);
     $css = $event->getCss();
     $data = [

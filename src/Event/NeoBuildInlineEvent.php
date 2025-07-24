@@ -15,6 +15,13 @@ class NeoBuildInlineEvent extends Event {
   const EVENT_NAME = 'neo_build_inline';
 
   /**
+   * The theme name.
+   *
+   * @var string
+   */
+  public $themeName;
+
+  /**
    * Whether or not the site is in development mode.
    *
    * @var bool
@@ -41,7 +48,8 @@ class NeoBuildInlineEvent extends Event {
    * @param bool $devMode
    *   Whether or not the site is in development mode.
    */
-  public function __construct(bool $devMode = FALSE) {
+  public function __construct(string $themeName, bool $devMode = FALSE) {
+    $this->themeName = $themeName;
     $this->devMode = $devMode;
     $this->data = [];
     $this->cacheTags = [
@@ -50,6 +58,16 @@ class NeoBuildInlineEvent extends Event {
     if ($devMode) {
       $this->cacheTags[] = 'exo_build:build:dev';
     }
+  }
+
+  /**
+   * Gets the theme name.
+   *
+   * @return string
+   *   The theme name.
+   */
+  public function getThemeName(): string {
+    return $this->themeName;
   }
 
   /**
