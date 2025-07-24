@@ -5,12 +5,24 @@ module.exports = {
 
     function deepMerge(target, source) {
       const result = { ...target, ...source };
+      let apply = '';
       for (const key of Object.keys(result)) {
-        result[key] =
-          typeof target[key] == 'object' && typeof source[key] == 'object'
-            ? deepMerge(target[key], source[key])
-            : structuredClone(result[key]);
+        if (key.startsWith('@apply')) {
+          // only allow the last @apply key to be set. This allows child
+          // scopes to override parent @apply rules.
+          apply = key;
+          delete result[key];
+        } else {
+          result[key] =
+            typeof target[key] == 'object' && typeof source[key] == 'object'
+              ? deepMerge(target[key], source[key])
+              : structuredClone(result[key]);
+        }
       }
+      if (apply) {
+        result[apply] = {};
+      }
+
       return result;
     }
 
@@ -37,7 +49,7 @@ module.exports = {
     const process = (layer, theme) => {
       for (const key of Object.keys(layer)) {
         for (const prop of Object.keys(layer[key])) {
-          if (typeof layer[key][prop] === 'string') {
+          if (typeof layer[key][prop] === 'string' && !layer[key][prop].includes('theme(')) {
             const themed = theme(layer[key][prop]);
             if (themed !== undefined) {
               layer[key][prop] = themed;
@@ -46,7 +58,7 @@ module.exports = {
               layer[key][prop] = layer[key][prop];
             }
           }
-          if (typeof layer[key][prop] === 'object') {
+          if (typeof layer[key][prop] === 'object' && Array.isArray(layer[key][prop])) {
             layer[key][prop] = {};
           }
         }
@@ -72,6 +84,7 @@ module.exports = {
           }
           if (scopeComponents) {
             const components = process(JSON.parse(JSON.stringify(scopeComponents)), theme);
+            // console.log(scope.id, components);
             addComponents(components);
           }
           if (scopeUtilities) {
@@ -90,7 +103,6 @@ module.exports = {
     tailwind.theme = deepMerge(tailwind.theme, scope.tailwind.theme);
     tailwind.content = tailwind.content.concat(scope.tailwind.content);
     tailwind.safelist = tailwind.safelist.concat(scope.tailwind.safelist);
-    // console.log({ ...config, ...scope.tailwind, ...tailwind });
     return { ...config, ...scope.tailwind, ...tailwind };
   }
 }
