@@ -58,8 +58,14 @@ module.exports = {
               layer[key][prop] = layer[key][prop];
             }
           }
-          if (typeof layer[key][prop] === 'object' && Array.isArray(layer[key][prop])) {
-            layer[key][prop] = {};
+          if (typeof layer[key][prop] === 'object') {
+            if (Array.isArray(layer[key][prop])) {
+              layer[key][prop] = {};
+            }
+            else {
+              const child = process({'child': layer[key][prop]}, theme);
+              layer[key][prop] = child.child || layer[key][prop];
+            }
           }
         }
       }
