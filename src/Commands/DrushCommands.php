@@ -288,6 +288,8 @@ class DrushCommands extends CoreCommands {
       $scopeConfig = [
         'id' => $scope,
         'label' => $scope_definition['label'],
+        'root' => $root,
+        'docRoot' => Build::getNeoSetting('docroot'),
       ] + $this->neoBuildScope($extensions, (string) $scope, $config);
       if ($scope === 'shared') {
         $config['tailwind']['content'] = array_merge($config['tailwind']['content'], $scopeConfig['tailwind']['content']);
@@ -363,8 +365,13 @@ class DrushCommands extends CoreCommands {
     unset($config['ts']);
 
     // Extract phpstan.
-    $config['phpstan']['parameters']['paths'] = array_values($config['phpstan']['parameters']['paths']);
-    $this->fileSystem->saveData(Yaml::encode($config['phpstan']), $root . '/phpstan.neon', FileExists::Replace);
+    if (file_exists($root . '/vendor/mglaman/phpstan-drupal/extension.neon')) {
+      $config['phpstan']['parameters']['paths'] = array_values($config['phpstan']['parameters']['paths']);
+      $this->fileSystem->saveData(Yaml::encode($config['phpstan']), $root . '/phpstan.neon', FileExists::Replace);
+    }
+    else {
+      $this->fileSystem->delete($root . '/phpstan.neon');
+    }
     unset($config['phpstan']);
 
     // Anything that remains goes in neo.
@@ -472,6 +479,7 @@ class DrushCommands extends CoreCommands {
         if (!is_array($themeScopes)) {
           $themeScopes = [$themeScopes];
         }
+        // $themeConfig['vite']['lib'][$id . ':Assets'] = $relativeRoot . $path . '/assets/**/*.{png,jpg,jpeg,gif,webp,svg}';
         if (in_array($scope, $themeScopes)) {
           $themeConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $path . $this->tailwindSrcSuffix;
           $themeConfig['tailwind']['content'][$id . ':Module'] = $docRoot . $path . $this->tailwindModuleSuffix;
@@ -988,11 +996,9 @@ class DrushCommands extends CoreCommands {
     $this->output()->writeln(dt('<info>[neo]</info> Neo is ready. Please run "npm install" from project root.'));
 
     $this->output()->writeln(dt('<info>  [neo]</info> Setup GrumPHP (optional)'));
-    $this->output()->writeln(dt('        Run the following commands from the project root:'));
+    $this->output()->writeln(dt('        Run the following command(s) from the project root:'));
     foreach ([
       'composer require --dev jacerider/grumphp-drupal',
-      'ddev exec grumphp git:init',
-      'ddev exec grumphp git:pre-commit',
     ] as $command) {
       $this->output()->writeln(dt('        - "@command"', [
         '@command' => $command,
