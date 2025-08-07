@@ -45,6 +45,20 @@ const reload = debounce((ctx, cache, restart) => {
 export default function neoBuild(scope, group) {
   return {
     name: 'vite:neo-build',
+    transform: (code, id) => {
+      let transformedCode = code;
+      if (code.includes('@assets/')) {
+        // Replace @assets with the correct path to the module or theme assets
+        // directory.
+        const parts = id.split('/src/');
+        const prefix = parts[0].replace(scope.root + '/' + scope.docRoot, '/') + '/assets/';
+        transformedCode = transformedCode.replaceAll('@assets', prefix);
+      }
+      return {
+        code: transformedCode,
+        map: null
+      };
+    },
     generateBundle: {
       order: 'post',
       handler(_options, bundle, _isWrite) {
