@@ -56,7 +56,7 @@ module.exports = {
               path.dirname(facadeModuleId),
             ).replace('../web/', '') + '/').replace('/src/', '/dist/');
             return path.join(relativeDir, fileName);
-          },
+          }
         }
       }
     };
