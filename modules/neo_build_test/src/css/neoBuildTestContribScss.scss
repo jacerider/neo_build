@@ -13,7 +13,7 @@
 @import 'import/neoBuildTestImportScss';
 
 .neo-build-test {
-  @apply bg-pink-800 p-2 m-2 rounded;
+  @apply bg-pink-800 m-2 rounded p-2;
 
   .neo-build-test--inner {
     @include testRequire.neo-build-test-bg;
@@ -21,7 +21,8 @@
   }
 
   .neo-build-test--jit {
-    @apply bg-primary-800 p-2 mt-2 rounded text-xs;
+    @apply mt-2 rounded bg-primary-800 p-2 text-xs;
+    mask: url('@assets/masks/tape-left.svg') left/50% 100% no-repeat;
 
     pre {
       @apply font-serif font-thin;
