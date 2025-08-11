@@ -350,8 +350,6 @@ class DrushCommands extends CoreCommands {
     $config['tailwind']['theme']['colors']['black-content'] = 'rgb(var(--color-black-content) / <alpha-value>)';
     $config['tailwind']['base'][':root']['--color-black'] = '0 0 0';
     $config['tailwind']['base'][':root']['--color-black-content'] = '255 255 255';
-    $config['tailwind']['theme']['colors']['shadow']['dark'] = 'rgb(var(--color-shadow) / <alpha-value>)';
-    $config['tailwind']['base'][':root']['--color-shadow'] = '0 0 0';
 
     $event = new NeoBuildEvent($config, $scopedExtensions, $docRoot);
     $this->eventDispatcher->dispatch($event, NeoBuildEvent::EVENT_NAME);
