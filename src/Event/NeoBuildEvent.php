@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\neo_build\Event;
 
 use Drupal\Component\EventDispatcher\Event;
+use Drupal\neo_build\NeoBuildCollection;
 
 /**
  * Event that is fired when a user logs in.
@@ -12,83 +13,48 @@ use Drupal\Component\EventDispatcher\Event;
 class NeoBuildEvent extends Event {
 
   // This makes it easier for subscribers to reliably use our event name.
-  const EVENT_NAME = 'neo_build';
+  const EVENT_NAME = 'new_neo_build';
 
   /**
-   * The Neo build config.
+   * The data collection.
    *
-   * @var array
+   * @var \Drupal\neo_build\NeoBuildCollection
    */
-  public $config;
+  private NeoBuildCollection $collection;
 
   /**
-   * The scoped modules/themes.
+   * The scoped extensions.
    *
-   * @var array
+   * @var \Drupal\neo_build\NeoExtension[]
    */
-  public $scopedExtensions;
-
-  /**
-   * The document root.
-   *
-   * @var string
-   */
-  public $docRoot;
+  private array $extensions;
 
   /**
    * Constructs the object.
-   *
-   * @param array $config
-   *   The Neo build config.
-   * @param array $scopedExtensions
-   *   The scoped modules/themes.
-   * @param string $docRoot
-   *   The document root.
    */
-  public function __construct(array $config, array $scopedExtensions, string $docRoot) {
-    $this->setConfig($config);
-    $this->scopedExtensions = $scopedExtensions;
-    $this->docRoot = $docRoot;
+  public function __construct(NeoBuildCollection $collection, array $extensions = []) {
+    $this->collection = $collection;
+    $this->extensions = $extensions;
   }
 
   /**
-   * Gets the Neo build config.
+   * Gets the data collection.
    *
-   * @return array
-   *   The configuration.
+   * @return \Drupal\neo_build\NeoBuildCollection
+   *   The data collection.
    */
-  public function getConfig() {
-    return $this->config;
+  public function getCollection(): NeoBuildCollection {
+    return $this->collection;
   }
 
   /**
-   * Sets the Neo build config.
+   * Gets the scoped extensions.
    *
-   * @param array $config
-   *   The configuration to set.
+   * @return \Drupal\neo_build\NeoExtension[]
+   *   The scoped extensions.
    */
-  public function setConfig(array $config) {
-    $this->config = $config;
-  }
-
-  /**
-   * Gets the Neo-enabled modules/themes by scope.
-   *
-   * @return array
-   *   The scoped modules/themes.
-   */
-  public function getScopedExtensions() {
-    return $this->scopedExtensions;
-  }
-
-  /**
-   * Gets the document root.
-   *
-   * @return string
-   *   The document root.
-   */
-  public function getDocRoot() {
-    return $this->docRoot;
+  public function getExtensions(): array {
+    return $this->extensions;
   }
 
 }

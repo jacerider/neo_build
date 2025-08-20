@@ -45,6 +45,8 @@ class NeoBuildInlineEvent extends Event {
   /**
    * Constructs the object.
    *
+   * @param string $themeName
+   *   The theme name.
    * @param bool $devMode
    *   Whether or not the site is in development mode.
    */

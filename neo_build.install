@@ -5,6 +5,8 @@
  * Install, update and uninstall functions for the Neo Build module.
  */
 
+use Drupal\Core\Extension\Requirement\RequirementSeverity;
+
 /**
  * Implements hook_requirements().
  */
@@ -13,15 +15,26 @@ function neo_build_requirements($phase) {
 
   if ($phase == 'runtime') {
     $config = \Drupal::config('neo_build.info');
-    $extensions = [];
     $versions = [];
     $builtVersions = [];
 
-    $extensions = neo_build_get_extensions();
+    /** @var \Drupal\neo_build\NeoExtensionList $neoExtensionList */
+    $neoExtensionList = \Drupal::service('extension.list.neo');
+    $extensions = $neoExtensionList->all();
+    ksm($extensions['neo_base']);
+    // ksm($neoExtensionList->all(['front']));
+    // foreach ($extensions as $extension) {
+    //   ksm($extension->getTailwindInfo());
+    // }
+    ksort($extensions);
 
-    foreach ($extensions as $name => $info) {
-      $versions[$name] = $info['version'] ?? '0.0.0';
+    foreach ($extensions as $name => $extension) {
+      $versions[$name] = $extension->getVersion();
       $builtVersions[$name] = $config->get('versions.' . $name) ?? NULL;
+      // foreach ($extension->getLibraries() as $library) {
+      //   ksm($library->getIncludePaths());
+      //   ksm($library->getRequirePaths());
+      // }
     }
 
     $requirements['neo_build'] = [
@@ -45,11 +58,11 @@ function neo_build_requirements($phase) {
       ],
     ];
 
-    foreach ($extensions as $name => $info) {
+    foreach ($extensions as $name => $extension) {
       $currentVersion = $versions[$name] ?? '0.0.0';
       $newVersion = $builtVersions[$name] ?? NULL;
       $row = [
-        'extension' => $info['name'],
+        'extension' => $extension->getLabel(),
         'version' => $currentVersion,
         'built_version' => [
           'data' => [
@@ -60,7 +73,7 @@ function neo_build_requirements($phase) {
         ],
       ];
       if (!$newVersion || version_compare($currentVersion, $newVersion, '>')) {
-        $requirements['neo_build']['severity'] = REQUIREMENT_ERROR;
+        $requirements['neo_build']['severity'] = RequirementSeverity::Error;
         $requirements['neo_build']['value'] = t('Some modules or themes that require Neo Build have not been compiled or have been updated since the last compile. Please run the Neo build command <code>(npm run deploy)</code>.');
         $row['built_version']['data']['#prefix'] = '<span class="text-alert">';
       }

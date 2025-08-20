@@ -1,2 +1,0 @@
-const config = require('[WEB-ROOT]/[MODULE-DIR]/plugin/neo-stylelint.cjs');
-module.exports = config.stylelintConfig;

@@ -40,5 +40,3 @@ init();
   }
 
 })(Drupal, once);
-
-export {};

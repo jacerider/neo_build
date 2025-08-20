@@ -1,0 +1,15 @@
+import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
+import neo from './neo.json';
+import { buildRoot, buildConfig, buildServer } from './[DOC-ROOT][MODULE-DIR]/tools/neo-vite.cjs';
+import { neoVite, neoVitePost} from './[DOC-ROOT][MODULE-DIR]/tools/neo-vite-plugin.ts';
+export default defineConfig({
+  root: buildRoot(neo),
+  build: buildConfig(neo),
+  server: buildServer(neo),
+  plugins: [,
+    neoVite(neo),
+    neoVitePost(neo),
+    tailwindcss()
+  ]
+})

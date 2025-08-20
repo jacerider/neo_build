@@ -6,121 +6,37 @@ namespace Drupal\neo_build\Commands;
 
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Component\Plugin\PluginManagerInterface;
-use Drupal\Component\Serialization\Yaml;
-use Drupal\neo_build\Build;
 use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Asset\LibraryDiscovery;
+use Drupal\Core\Asset\LibraryDiscoveryCollector;
+use Drupal\neo_build\NeoBuild;
 use Drupal\Core\Asset\LibraryDiscoveryInterface;
-use Drupal\Core\Asset\LibraryDiscoveryParser;
 use Drupal\Core\Cache\Cache;
-use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\Core\Extension\ThemeExtensionList;
+use Drupal\Core\Extension\ThemeHandlerInterface;
 use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
-use Drupal\Core\File\FileUrlGeneratorInterface;
-use Drupal\Core\Messenger\MessengerInterface;
-use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\Template\TwigEnvironment;
-use Drupal\neo_build\Event\NeoBuildEvent;
+use Drupal\neo_build\NeoBuildCollection;
+use Drupal\neo_build\NeoExtensionList;
 use Drush\Commands\DrushCommands as CoreCommands;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Drupal\neo_build\Event\NeoBuildEvent;
+use Drupal\neo_build\NeoCss;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Drush commands for Neo Build.
  */
 class DrushCommands extends CoreCommands {
 
-  use StringTranslationTrait;
-
   /**
    * The doc root.
    *
    * @var string
    */
-  protected $docRoot;
-
-  /**
-   * The Neo config file directory uri.
-   *
-   * @var string
-   */
-  protected $neoDirectory;
-
-  /**
-   * The Cite config file name.
-   *
-   * @var string
-   */
-  protected $neoConfigFileName = 'neo.json';
-
-  /**
-   * The tailwind src suffix.
-   *
-   * @var string
-   */
-  protected $tailwindSrcSuffix = '/src/**/*.{js,ts,jsx,tsx,php}';
-
-  /**
-   * The tailwind module suffix.
-   *
-   * @var string
-   */
-  protected $tailwindModuleSuffix = '/*.{module,inc}';
-
-  /**
-   * The tailwind theme suffix.
-   *
-   * @var string
-   */
-  protected $tailwindThemeSuffix = '/*.theme';
-
-  /**
-   * The tailwind twig suffix.
-   *
-   * @var string
-   */
-  protected $tailwindTwigSuffix = '/**/*.twig';
-
-  /**
-   * The stylelint suffix.
-   *
-   * @var string
-   */
-  protected $stylelintSuffix = '/**/*.{css,scss}';
-
-  /**
-   * The default vite config.
-   *
-   * @var array
-   */
-  protected $viteDefault = [
-    'lib' => [],
-    'scssInclude' => [],
-    'scssAdditionalData' => [],
-  ];
-
-  /**
-   * The default tailwind config.
-   *
-   * @var array
-   */
-  protected $tailwindDefault = [
-    'content' => [],
-    'theme' => [],
-    'base' => [],
-    'components' => [],
-    'utilities' => [],
-    'variants' => [],
-    'safelist' => [],
-  ];
-
-  /**
-   * The default stylelint config.
-   *
-   * @var array
-   */
-  protected $stylelintDefault = [];
+  protected $root;
 
   /**
    * {@inheritDoc}
@@ -128,77 +44,20 @@ class DrushCommands extends CoreCommands {
   public function __construct(
     private readonly string $appRoot,
     private readonly EventDispatcherInterface $eventDispatcher,
-    private readonly MessengerInterface $messenger,
+    private readonly PluginManagerInterface $scopeManager,
+    private readonly FileSystemInterface $fileSystem,
     private readonly ModuleExtensionList $moduleExtensionList,
     private readonly ModuleHandlerInterface $moduleHandler,
-    private readonly ThemeExtensionList $themeExtensionList,
+    private readonly ThemeHandlerInterface $themeHandler,
     private readonly LibraryDiscoveryInterface $libraryDiscovery,
-    private readonly LibraryDiscoveryParser $discoveryParser,
-    private readonly FileSystemInterface $fileSystem,
-    private readonly FileUrlGeneratorInterface $fileUrlGenerator,
+    private readonly NeoExtensionList $neoExtensionList,
     private readonly TwigEnvironment $twig,
-    private readonly PluginManagerInterface $scopeManager,
-    private readonly PluginManagerInterface $groupManager,
   ) {
     parent::__construct();
   }
 
   /**
-   * Clone a template into a theme from neo_base.
-   *
-   * @command neo:template
-   * @usage drush neo:template
-   *   Run the neoBuild template generator.
-   * @aliases neo-template
-   *
-   * @throws \Exception
-   *   If no index or no server were passed or passed values are invalid.
-   */
-  public function neoTemplate() {
-    // $docRoot = './' . Build::getNeoSetting('docroot');
-    // print $docRoot;
-    $themeId = $this->io()->choice(dt('Select the theme:'), [
-      'front' => dt('Front Theme'),
-      'back' => dt('Back Theme'),
-    ]);
-    $baseTheme = $this->themeExtensionList->get('neo_base');
-    $baseThemePath = $baseTheme->getPath();
-    $theme = $this->themeExtensionList->get($themeId);
-    $themePath = $theme->getPath();
-    /** @var \Drupal\Core\File\FileSystemInterface $file_system */
-    $fileSystem = \Drupal::service('file_system');
-    $files = $fileSystem->scanDirectory($baseThemePath . '/templates', '/.*\.html.twig.example$/');
-    if (!$files) {
-      $this->io()->error(dt('No template files found.'));
-      return;
-    }
-    $fileOptions = [];
-    foreach ($files as $file) {
-      $fileOptions[$file->uri] = str_replace('.example', '', $file->filename);
-    }
-    $fileUri = $this->io()->choice(dt('Select the template file:'), $fileOptions);
-
-    $variationName = $this->io()->ask('Template variation name', required: TRUE, validate: function ($answer) {
-      if (!preg_match('/^[\-a-z]+[\-a-z0-9]*$/', $answer)) {
-        return 'Only lowercase alphanumeric chars/dashes allowed; only letters/dashes allowed as first character.';
-      }
-    });
-
-    $destination = str_replace($baseThemePath, $themePath, $fileUri);
-    $destination = str_replace('.html.twig.example', '--' . $variationName . '.html.twig', $destination);
-
-    if (file_exists($destination)) {
-      $this->io()->error(dt('The template file @file already exists.', ['@file' => $destination]));
-      return;
-    }
-
-    $fileSystem->prepareDirectory(dirname($destination), FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
-    $fileSystem->copy($fileUri, $destination);
-    $this->io()->success(dt('Template file @file created successfully.', ['@file' => $destination]));
-  }
-
-  /**
-   * Generate vite.config.json.
+   * Generate neo.json.
    *
    * @command neo:build
    * @usage drush neo:build
@@ -208,635 +67,174 @@ class DrushCommands extends CoreCommands {
    * @throws \Exception
    *   If no index or no server were passed or passed values are invalid.
    */
-  public function neoBuild(string $scope = 'front', string $group = 'custom') {
+  public function neoBuild(string $scope = 'front') {
+    if (!$this->scopeManager->hasDefinition($scope)) {
+      throw new \Exception("Scope '$scope' does not exist.");
+    }
+
+    // Clear extension information.
+    $this->moduleExtensionList->reset();
+    $this->themeHandler->refreshInfo();
+
+    $scopeDefinition = $this->scopeManager->getDefinition($scope);
+    $this->output()->writeln(dt('<info>⟢ [neo]</info> Prepare Scope: @scope', [
+      '@scope' => $scopeDefinition['label'],
+    ]));
+
+    NeoBuild::setNeoState('scope', $scope);
+    // Example: /Users/jacerider/Sites/augustAsh/rhls.
     $root = $this->getRoot();
-    if (!$root) {
-      $this->output()->writeln(dt('<info>[neo]</info> <error>Neo install failed. Could not find project root.</error>'));
-      return;
+    // Example: web/.
+    $docRoot = $this->getDocRoot();
+
+    if ($this->libraryDiscovery instanceof LibraryDiscoveryCollector) {
+      $this->libraryDiscovery->clear();
     }
-    $docRoot = './' . Build::getNeoSetting('docroot');
-    $modules = array_filter($this->moduleHandler->getModuleList(), function ($extension) {
-      return $this->moduleHandler->moduleExists($extension->getName());
-    });
-
-    Build::setNeoState('scope', $scope);
-    Build::setNeoState('group', $group);
-
-    $config = [
-      'host' => Build::getNeoSetting('host'),
-      'port' => Build::getNeoSetting('port'),
-      'https' => Build::getNeoSetting('https'),
-      'outDir' => './' . Build::getNeoSetting('docroot'),
-      'ignored' => [
-        '**/.ddev/**/*',
-        '**/web/core/**/*',
-        '**/web/profiles/**/*',
-        '**/web/sites/**/*',
-      ],
-      // Record requested scope so we can use it in the tailwind config. Will
-      // restore to 'front' when not in dev mode.
-      'devScope' => Build::getNeoState('dev', FALSE) ? $scope : 'front',
-      'devGroup' => Build::getNeoState('dev', FALSE) ? $group : 'custom',
-      'ts' => [
-        'include' => [
-          $docRoot . $this->moduleHandler->getModule('neo_build')->getPath() . '/src/js/typings/*.d.ts',
-        ],
-      ],
-      'tailwind' => $this->tailwindDefault,
-      'scopes' => [],
-      'groups' => [],
-      'phpstan' => [
-        'parameters' => [
-          'level' => 1,
-          'paths' => [],
-          'fileExtensions' => [
-            'php',
-            'module',
-            'inc',
-            'install',
-            'theme',
-          ],
-          'ignoreErrors' => [
-            '#^Unsafe usage of new static#',
-            '#Drupal calls should be avoided in classes, use dependency injection instead#',
-            '#^Plugin definitions cannot be altered.#',
-            '#^Class .* extends @internal class#',
-          ],
-        ],
-        'includes' => [
-          'vendor/mglaman/phpstan-drupal/extension.neon',
-        ],
-      ],
-    ];
-
-    $this->libraryDiscovery->clearCachedDefinitions();
-    Build::preventAlter();
-
-    if (file_exists('modules/custom')) {
-      $config['phpstan']['parameters']['paths']['customModules'] = $docRoot . 'modules/custom';
-    }
-
-    $scopedExtensions = [];
-    $scopes = $this->scopeManager->getDefinitions();
-    foreach ($scopes as $scope => $scope_definition) {
-      $this->output()->writeln(dt('<info>  [neo]</info> Prepare Scope: @scope', [
-        '@scope' => $scope_definition['label'],
-      ]));
-      $themes = $this->getScopedThemes((string) $scope);
-      $extensions = array_merge($modules, $themes);
-      $scopedExtensions[$scope] = $extensions;
-      $scopeConfig = [
-        'id' => $scope,
-        'label' => $scope_definition['label'],
-        'root' => $root,
-        'docRoot' => Build::getNeoSetting('docroot'),
-      ] + $this->neoBuildScope($extensions, (string) $scope, $config);
-      if ($scope === 'shared') {
-        $config['tailwind']['content'] = array_merge($config['tailwind']['content'], $scopeConfig['tailwind']['content']);
-        $scopeConfig['tailwind']['content'] = [];
-      }
-
-      $config['scopes'][$scope] = $scopeConfig;
-    }
-
-    foreach ($config['scopes'] as $scope => &$scopeConfig) {
-      // Cleanup and convert to indexed arrays.
-      $scopeConfig['vite']['lib'] = array_values($scopeConfig['vite']['lib']);
-      $scopeConfig['tailwind']['safelist'] = array_unique($scopeConfig['tailwind']['safelist']);
-      $scopeConfig['tailwind']['content'] = array_values(array_diff_key($scopeConfig['tailwind']['content'], $config['tailwind']['content']));
-      $scopeConfig['stylelint'] = array_values($scopeConfig['stylelint']);
-    }
-
-    $config['ts']['include'] = array_values($config['ts']['include']);
-    $config['tailwind']['content'] = array_values($config['tailwind']['content']);
-
-    $groups = $this->groupManager->getDefinitions();
-    foreach ($config['groups'] as $groupId => $group) {
-      if (!isset($groups[$groupId])) {
-        unset($groups[$groupId]);
-      }
-      foreach ($group as &$file) {
-        // Normalize file to what is expected after build.
-        $file = str_replace('/src/', '/dist/', $file);
-        $file = str_replace('/lib/', '/dist/lib/', $file);
-        $file = str_replace('/ts/', '/js/', $file);
-        $file = str_replace('.ts', '.js', $file);
-        $file = str_replace('.scss', '.css', $file);
-      }
-      $group = array_values($group);
-      $config['groups'][$groupId] = [
-        'id' => $groupId,
-        'label' => $groups[$groupId]['label'],
-        'files' => $group,
-      ];
-    }
-    foreach ($groups as $groupId => $group) {
-      foreach ($group['include'] as $groupIncludeId) {
-        if (!empty($config['groups'][$groupIncludeId]['files'])) {
-          $config['groups'][$groupId]['files'] = array_merge($config['groups'][$groupId]['files'], $config['groups'][$groupIncludeId]['files']);
-        }
-      }
-    }
-
-    // Tailwind colors that are always present.
-    $config['tailwind']['theme']['colors']['transparent'] = 'transparent';
-    $config['tailwind']['theme']['colors']['current'] = 'currentColor';
-    $config['tailwind']['theme']['colors']['inherit'] = 'inherit';
-    $config['tailwind']['theme']['colors']['white'] = 'rgb(var(--color-white) / <alpha-value>)';
-    $config['tailwind']['theme']['colors']['white-content'] = 'rgb(var(--color-white-content) / <alpha-value>)';
-    $config['tailwind']['base'][':root']['--color-white'] = '255 255 255';
-    $config['tailwind']['base'][':root']['--color-white-content'] = '0 0 0';
-    $config['tailwind']['theme']['colors']['black'] = 'rgb(var(--color-black) / <alpha-value>)';
-    $config['tailwind']['theme']['colors']['black-content'] = 'rgb(var(--color-black-content) / <alpha-value>)';
-    $config['tailwind']['base'][':root']['--color-black'] = '0 0 0';
-    $config['tailwind']['base'][':root']['--color-black-content'] = '255 255 255';
-
-    $event = new NeoBuildEvent($config, $scopedExtensions, $docRoot);
-    $this->eventDispatcher->dispatch($event, NeoBuildEvent::EVENT_NAME);
-    $config = $event->getConfig();
-
-    Build::preventAlter(FALSE);
-    $this->libraryDiscovery->clearCachedDefinitions();
-
-    // Extract ts.
-    $this->fileSystem->saveData(json_encode($config['ts'], JSON_PRETTY_PRINT), $root . '/tsconfig.neo.json', FileExists::Replace);
-    unset($config['ts']);
-
-    // Extract phpstan.
-    if (file_exists($root . '/vendor/mglaman/phpstan-drupal/extension.neon')) {
-      $config['phpstan']['parameters']['paths'] = array_values($config['phpstan']['parameters']['paths']);
-      $this->fileSystem->saveData(Yaml::encode($config['phpstan']), $root . '/phpstan.neon', FileExists::Replace);
+    elseif ($this->libraryDiscovery instanceof LibraryDiscovery) {
+      $this->libraryDiscovery->clearCachedDefinitions();
     }
     else {
-      $this->fileSystem->delete($root . '/phpstan.neon');
+      throw new \Exception('Library discovery service is not supported.');
     }
-    unset($config['phpstan']);
+    NeoBuild::preventAlter();
 
-    // Anything that remains goes in neo.
-    $this->fileSystem->saveData(json_encode($config, JSON_PRETTY_PRINT), $root . '/neo.json', FileExists::Replace);
+    $collection = new NeoBuildCollection(
+      $this->output(),
+      NeoBuild::getNeoSetting('host'),
+      NeoBuild::getNeoSetting('port'),
+      NeoBuild::getNeoSetting('https'),
+      NeoBuild::getNeoState('dev', FALSE),
+      $root,
+      $docRoot,
+      $this->moduleHandler->getModule('neo_build')->getPath(),
+    );
+    $collection->setScope($scope);
 
-    $this->output()->writeln(dt('<info>✔ [neo]</info> Prepare Success'));
+    $extensions = $this->neoExtensionList->all();
+    foreach ($extensions as $extension) {
+      $collection->addStanPath($extension);
+    }
+
+    $scopedExtensions = $this->neoExtensionList->all([$scope]);
+    foreach ($scopedExtensions as $extension) {
+      if ($extension->getType() === 'module') {
+        $collection->addModule($extension);
+      }
+      else {
+        $collection->addTheme($extension);
+      }
+    }
+
+    $event = new NeoBuildEvent($collection, $scopedExtensions);
+    $this->eventDispatcher->dispatch($event, NeoBuildEvent::EVENT_NAME);
+
+    NeoBuild::preventAlter(FALSE);
+    if ($this->libraryDiscovery instanceof LibraryDiscoveryCollector) {
+      $this->libraryDiscovery->clear();
+    }
+    elseif ($this->libraryDiscovery instanceof LibraryDiscovery) {
+      $this->libraryDiscovery->clearCachedDefinitions();
+    }
+
+    $this->buildTailwindCss($collection);
+
+    $this->fileSystem->saveData($collection->toNeoJson(), $root . '/neo.json', FileExists::Replace);
+    $this->fileSystem->saveData($collection->toTsJson(), $root . '/neo.tsconfig.json', FileExists::Replace);
+    $this->fileSystem->saveData($collection->toStanYaml(), $root . '/phpstan.neon', FileExists::Replace);
+
+    $this->output()->writeln(dt('<info>⟢ [neo]</info> Prepare Success'));
     $this->output()->writeln('');
 
     Cache::invalidateTags(['exo_build:build']);
   }
 
   /**
-   * Build config scope.
+   * Builds the Tailwind CSS file.
    *
-   * @param \Drupal\Core\Extension\Extension[] $extensions
-   *   The modules.
-   * @param string $scope
-   *   The scope.
-   * @param array $globalConfig
-   *   The global config.
+   * @param \Drupal\neo_build\NeoBuildCollection $collection
+   *   The Neo build collection.
    *
-   * @return array
-   *   The scope config.
+   * @throws \Exception
+   *   If the primary file is not set or if the root directory is not valid.
    */
-  protected function neoBuildScope(array $extensions, string $scope, array &$globalConfig) {
-    $config = [
-      'vite' => $this->viteDefault,
-      'tailwind' => $this->tailwindDefault,
-      'stylelint' => $this->stylelintDefault,
-    ];
-    $relativeRoot = './';
-    foreach ($extensions as $extension) {
-      $this->neoBuildExtension($extension, $scope, $config, $globalConfig);
-    }
-    if (empty($config['vite']['lib'])) {
-      $this->output()->writeln(dt('<info>[neo]</info> [Libraries] No supported libraries were found. See readme for more information.'));
-      $config['vite']['lib']['na'] = $relativeRoot . $this->moduleHandler->getModule('neo_build')->getPath() . '/install/neo/na.ts';
-    }
-    if (empty($config['tailwind']['content'])) {
-      $this->output()->writeln(dt('<info>[neo]</info> [Tailwind] No supported libraries were found. See readme for more information.'));
-      $config['tailwind']['content']['na'] = $relativeRoot . $this->moduleHandler->getModule('neo_build')->getPath() . '/install/neo/na.ts';
-    }
-    return $config;
-  }
+  private function buildTailwindCss(NeoBuildCollection $collection) {
+    $primaryFile = $collection->getPrimaryFile();
+    $primaryDir = dirname($primaryFile);
+    $root = $collection->getRoot();
+    $docRoot = $collection->getDocRoot();
+    $neoRoot = $collection->getNeoRoot();
+    $primaryCssPath = $root . $docRoot . $primaryDir . '/tailwind.neo.css';
+    $pluginPath = $root . $docRoot . $neoRoot . 'tools/neo-tailwind-plugin.ts';
 
-  /**
-   * Build config for a single extension.
-   *
-   * @param \Drupal\Core\Extension\Extension $extension
-   *   The extension.
-   * @param string $scope
-   *   The scope.
-   * @param array $scopeConfig
-   *   The scope config.
-   * @param array $globalConfig
-   *   The global config.
-   */
-  protected function neoBuildExtension(Extension $extension, string $scope, array &$scopeConfig, array &$globalConfig) {
-    $docRoot = './' . Build::getNeoSetting('docroot');
-    $group = Build::getNeoState('group');
-    $dev = Build::getNeoState('dev', FALSE);
-    $relativeRoot = './';
-    $id = $extension->getName();
-    $path = $extension->getPath();
-    $isModule = $extension->getType() === 'module';
-    // When in contrib dev mode, add all neo* modules to phpstan.
-    if ($dev && substr($id, 0, 3) === 'neo' && $group === 'contrib') {
-      $globalConfig['phpstan']['parameters']['paths'][$id] = $docRoot . $path;
-    }
-    /** @var \Drupal\Core\Extension\Extension $extension */
-    if ($isModule) {
-      $info = $this->moduleExtensionList->getExtensionInfo($id);
-      // Module has explicitly flagged Neo support.
-      if (!empty($info['neo'])) {
-        $globalConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $path . $this->tailwindSrcSuffix;
-        $globalConfig['tailwind']['content'][$id . ':Module'] = $docRoot . $path . $this->tailwindModuleSuffix;
-        if (is_dir($path . '/templates')) {
-          $globalConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
-        }
-        if (is_array($info['neo'])) {
-          foreach (array_keys($this->tailwindDefault) as $layer) {
-            if (isset($info['neo'][$layer])) {
-              $globalConfig['tailwind'][$layer] = NestedArray::mergeDeep($info['neo'][$layer], $globalConfig['tailwind'][$layer]);
-            }
-          }
-        }
+    $css = new NeoCss();
+
+    // Imports.
+    $imports = array_map(fn($path) => $root . $docRoot . $path, $collection->getTailwindImports());
+    $css->addImports($imports);
+    $collection->clearTailwindImports();
+
+    // Sources.
+    $sources = array_map(fn($path) => $root . $docRoot . $path, $collection->getTailwindSources());
+    $css->addSources($sources);
+    $collection->clearTailwindSources();
+
+    // Add all CSS variables to CSS file and remove them from the collection.
+    // Anything that remains in theme will be handled at compile via our plugin.
+    foreach ($collection->getTailwindTheme() as $key => $value) {
+      if (substr($key, 0, 2) === '--' && is_string($value)) {
+        $css->addCssVariable($key, $value);
+        $collection->clearTailwindThemeItem($key);
       }
     }
-    elseif (isset($extension->info)) {
-      $themeConfig = [
-        'vite' => $this->viteDefault,
-        'tailwind' => $this->tailwindDefault,
-        'stylelint' => $this->stylelintDefault,
-      ];
-      if (!empty($extension->info['neo'])) {
-        // Add all custom themes that extend a neo theme to phpstan.
-        $themeGroup = $extension->info['neo']['group'] ?? 'custom';
-        if ($themeGroup === 'custom') {
-          $globalConfig['phpstan']['parameters']['paths'][$id] = $docRoot . $path;
-        }
-        $themeScopes = $scope;
-        if (is_array($extension->info['neo']) && isset($extension->info['neo']['scope'])) {
-          $themeScopes = $extension->info['neo']['scope'];
-        }
-        if (!is_array($themeScopes)) {
-          $themeScopes = [$themeScopes];
-        }
-        // $themeConfig['vite']['lib'][$id . ':Assets'] = $relativeRoot . $path . '/assets/**/*.{png,jpg,jpeg,gif,webp,svg}';
-        if (in_array($scope, $themeScopes)) {
-          $themeConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $path . $this->tailwindSrcSuffix;
-          $themeConfig['tailwind']['content'][$id . ':Module'] = $docRoot . $path . $this->tailwindModuleSuffix;
-          if (is_dir($path . '/templates')) {
-            $themeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
-          }
-        }
-        if (is_array($extension->info['neo'])) {
-          foreach (array_keys($this->tailwindDefault) as $layer) {
-            if (isset($extension->info['neo'][$layer])) {
-              $themeConfig['tailwind'][$layer] = NestedArray::mergeDeep($extension->info['neo'][$layer], $themeConfig['tailwind'][$layer]);
-            }
-          }
-        }
-        if ($id === 'neo_base') {
-          // Add base to global.
-          $globalConfig['tailwind'] = NestedArray::mergeDeep($globalConfig['tailwind'], $themeConfig['tailwind']);
-          $themeConfig['tailwind'] = [];
-        }
-        $scopeConfig = NestedArray::mergeDeep($scopeConfig, $themeConfig);
+
+    // All base styles are added to the CSS file.
+    foreach ($collection->getTailwindBase() as $key => $value) {
+      if (substr($key, 0, 2) === '--' && is_string($value)) {
+        $css->addCssVariable($key, $value, 'base');
+      }
+      else {
+        $css->addRule($key, $value, NULL, 'base');
       }
     }
-    $library_file = $path . '/' . $id . '.libraries.yml';
-    if (is_file($this->appRoot . '/' . $library_file)) {
-      $libraries = $this->libraryDiscovery->getLibrariesByExtension($id);
-      // We need the unextended libraries to get the correct scope and group
-      // for the library. When libraries are extended by themes, they inherit
-      // the neo settings from whatever extended them, which is incorrect for
-      // the purposes of this command.
-      $unextendedLibraries = $this->discoveryParser->buildByExtension($id);
-      foreach ($libraries as $key => $library) {
-        $library['key'] = $key;
-        $unextendedLibrary = $unextendedLibraries[$key] ?? [];
-        $neoSettings = $unextendedLibrary['neo'] ?? $library['neo'] ?? [];
-        if ($neoSettings) {
-          // Includes.
-          $this->neoBuildExtensionScssInclude($extension, $library, $scopeConfig, $globalConfig);
-          $this->neoBuildExtensionScssRequire($extension, $library, $scopeConfig, $globalConfig);
-          // Get scope.
-          if ($isModule && $scope !== 'shared') {
-            continue;
-          }
-          else {
-            $libraryScopes = $scope;
-            if (is_array($neoSettings) && isset($neoSettings['scope'])) {
-              $libraryScopes = $neoSettings['scope'];
-            }
-            if (!is_array($libraryScopes)) {
-              $libraryScopes = [$libraryScopes];
-            }
-            if (!in_array($scope, $libraryScopes)) {
-              continue;
-            }
-          }
-          // Get group.
-          $libraryGroup = 'custom';
-          if (is_array($neoSettings) && isset($neoSettings['group'])) {
-            $libraryGroup = $neoSettings['group'];
-          }
-          // Process.
-          if (!empty($library['css']) || !empty($library['js'])) {
-            $scopeConfig['tailwind']['content'][$id . ':Files'] = $docRoot . $path . $this->tailwindSrcSuffix;
-            if (is_dir($path . '/templates')) {
-              $scopeConfig['tailwind']['content'][$id . ':Twig'] = $docRoot . $path . '/templates' . $this->tailwindTwigSuffix;
-            }
-            if ($extension->getType() === 'theme') {
-              $scopeConfig['tailwind']['content'][$id . ':Theme'] = $docRoot . $path . $this->tailwindThemeSuffix;
-            }
-          }
-          // CSS.
-          if (!empty($library['css'])) {
-            if (count($library['css']) > 1) {
-              $this->messenger->addError($this->t('The library @id is trying to use Neo but specified more than 1 CSS file. This is not supported.', [
-                '@id' => $id . ':' . $key,
-              ]));
-              $this->messenger->addError(print_r($library['css'], TRUE));
-              continue;
-            }
-            $css = reset($library['css']);
-            $scopeConfig['vite']['lib'][$id . ':' . $key . ':Css'] = $relativeRoot . $css['data'];
-            $scopeConfig['stylelint'][$id . ':' . $key . ':Css'] = $docRoot . $css['data'];
-            $globalConfig['groups'][$libraryGroup][$id . ':' . $key . ':Css'] = $css['data'];
+    $collection->clearTailwindBase();
 
-            // Support glob CSS includes.
-            if ($content = file_get_contents($relativeRoot . $css['data'])) {
-              $pattern = '/^([ \t]*(?:\/\*.*)?)@(import|use)\s+["\']([^"\']+\*[^"\']*(?:\.scss|\.sass)?)["\'];?([ \t]*(?:\/[\/*].*)?)$/m';
-              preg_match_all($pattern, $content, $matches, PREG_SET_ORDER, 0);
-              foreach ($matches as $match) {
-                if (!empty($match[3])) {
-                  foreach (glob(dirname($relativeRoot . $css['data']) . '/' . $match[3]) as $importKey => $importPath) {
-                    $importPath = str_replace($relativeRoot, $docRoot, $importPath);
-                    $scopeConfig['stylelint'][$id . ':' . $key . ':Css:' . $importKey] = $importPath;
-                  }
-                }
-              }
-            }
-          }
-          // JS.
-          if (!empty($library['js'])) {
-            if (count($library['js']) > 1) {
-              $this->messenger->addError($this->t('The library @id is trying to use Neo but specified more than 1 Javascript file. This is not supported.', [
-                '@id' => $id . ':' . $key,
-              ]));
-              $this->messenger->addError(print_r($library['js'], TRUE));
-              continue;
-            }
-            $js = reset($library['js']);
-            $scopeConfig['vite']['lib'][$id . ':' . $key . ':Js'] = $relativeRoot . $js['data'];
-            $globalConfig['groups'][$libraryGroup][$id . ':' . $key . ':Js'] = $js['data'];
-            if (substr($js['data'], -3) === '.ts') {
-              $globalConfig['ts']['include'][$id . ':' . $key . ':Js'] = $docRoot . $js['data'];
-              if (is_dir($path . '/src/js/typings')) {
-                $globalConfig['ts']['include'][$id . ':' . $key . ':Typing'] = $docRoot . $path . '/src/js/typings/*.d.ts';
-              }
-            }
-          }
-        }
+    // All component are added to the CSS file.
+    foreach ($collection->getTailwindComponents() as $key => $value) {
+      if (substr($key, 0, 2) === '--' && is_string($value)) {
+        $css->addCssVariable($key, $value, 'components');
+      }
+      else {
+        $css->addRule($key, $value, NULL, 'components');
       }
     }
-  }
+    $collection->clearTailwindComponents();
 
-  /**
-   * Build extension include config.
-   *
-   * @param \Drupal\Core\Extension\Extension $extension
-   *   The extension.
-   * @param array $library
-   *   The library.
-   * @param array $scopeConfig
-   *   The scope config.
-   * @param array $globalConfig
-   *   The global config.
-   */
-  protected function neoBuildExtensionScssInclude(Extension $extension, array $library, array &$scopeConfig, array &$globalConfig) {
-    if (is_array($library['neo']) && !empty($library['neo']['include'])) {
-      $id = $extension->getName();
-      $key = $library['key'];
-      $isDev = $this->neoBuildDevEnabled();
-      $docRoot = './' . Build::getNeoSetting('docroot');
-      $relativeRoot = './';
-      foreach ($library['neo']['include'] as $path => $data) {
-        $files = [];
-        $location = $extension->getPath() . '/' . $path;
-        if (is_dir($location)) {
-          $viteConfig['scssInclude'][] = $docRoot . $location;
-          $files = array_diff(scandir($location), [
-            '.',
-            '..',
-          ]);
-        }
-        else {
-          if (!file_exists($location)) {
-            $this->messenger->addError($this->t('The library is trying to include a scss file that does not exist.'));
-            continue;
-          }
-          $pathinfo = pathinfo($location);
-          if ($pathinfo['extension'] !== 'scss') {
-            $this->messenger->addError($this->t('The library is trying to include a scss file that does not exist.'));
-            continue;
-          }
-          $location = $pathinfo['dirname'];
-          $scopeConfig['vite']['scssInclude'][] = $docRoot . $location;
-          $scopeConfig['stylelint'][$id . ':' . $key . ':Include'] = $docRoot . $location . $this->stylelintSuffix;
-          $files[] = $pathinfo['basename'];
-        }
-        if ($isDev) {
-          foreach ($files as $file) {
-            $pathinfo = pathinfo($location . '/' . $file);
-            if ($pathinfo['extension'] === 'scss') {
-              $name = $pathinfo['filename'];
-              $this->output()->writeln(dt('  <info>[neo]</info> Sass Include'));
-              $this->output()->writeln(dt('    File: <comment>"@info"</comment>', ['@info' => $relativeRoot . $location . '/' . $file]));
-              $this->output()->writeln(dt('    Use: <comment>"@info"</comment>', ['@info' => "@use '$name';"]));
-            }
-          }
-        }
-      }
+    // foreach (['base', 'components', 'utilities'] as $layer) {
+    //   foreach ($collection->getTailwindUtilitiesLayer($layer) as $key => $value) {
+    //     $css->addUtility($key, $value, NULL, 'utilities');
+    //   }
+    // }
+    // print_r($collection->getTailwindUtilities());
+    foreach ($collection->getTailwindUtilities() as $key => $value) {
+      $css->addUtility($key, $value);
     }
-  }
+    $collection->clearTailwindUtilities();
 
-  /**
-   * Build extension require config.
-   *
-   * @param \Drupal\Core\Extension\Extension $extension
-   *   The extension.
-   * @param array $library
-   *   The library.
-   * @param array $scopeConfig
-   *   The scope config.
-   * @param array $globalConfig
-   *   The global config.
-   */
-  protected function neoBuildExtensionScssRequire(Extension $extension, array $library, array &$scopeConfig, array &$globalConfig) {
-    if (is_array($library['neo']) && !empty($library['neo']['require'])) {
-      $id = $extension->getName();
-      $key = $library['key'];
-      $isDev = $this->neoBuildDevEnabled();
-      $docRoot = './' . Build::getNeoSetting('docroot');
-      foreach ($library['neo']['require'] as $path => $data) {
-        $location = $extension->getPath() . '/' . $path;
-        if (!file_exists($location)) {
-          $this->messenger->addError($this->t('The library is trying to require a scss file that does not exist.'));
-          continue;
-        }
-        $pathinfo = pathinfo($location);
-        if ($pathinfo['extension'] !== 'scss') {
-          $this->messenger->addError($this->t('The library is trying to require a scss file that does not exist.'));
-          continue;
-        }
-        $parents = explode('/', $pathinfo['dirname']);
-        $parentDirectory = $parents[count($parents) - 1];
-        $directory = implode('/', $parents);
-        $name = $pathinfo['filename'];
-        $alias = $data['namespace'] ?? $parentDirectory . ucwords(str_replace([
-          '_',
-          '-',
-        ], ' ', $name));
-        $scopeConfig['vite']['scssInclude'][] = $docRoot . $directory;
-        $scopeConfig['stylelint'][$id . ':' . $key . ':Require'] = $docRoot . $directory . $this->stylelintSuffix;
-        $scopeConfig['vite']['scssAdditionalData'][] = "@use '$name' as $alias;\n";
-        if ($isDev) {
-          $this->output()->writeln(dt('<info>[neo]</info> Sass Require'));
-          $this->output()->writeln(dt('    File: <comment>"@info"</comment>', ['@info' => $docRoot . $location]));
-          $this->output()->writeln(dt('    Namespace: <comment>"@info"</comment>', ['@info' => $alias]));
-        }
-      }
+    // Variants are added to the CSS file.
+    foreach ($collection->getTailwindVariants() as $name => $selectors) {
+      $css->addVariant($name, $selectors);
     }
-  }
+    $collection->clearTailwindVariants();
 
-  /**
-   * Get the relative path betwen two directories.
-   *
-   * @return string
-   *   The relative path.
-   */
-  protected function relativePath($from, $to, $ps = DIRECTORY_SEPARATOR) {
-    $arFrom = explode($ps, rtrim($from, $ps));
-    $arTo   = explode($ps, rtrim($to, $ps));
+    $output = "/*\n";
+    $output .= " * NEO Tailwind CSS\n";
+    $output .= " * Generated by Neo Build. Do NOT edit this file directly.\n";
+    $output .= " */\n\n";
+    $output .= "/* NEO Plugin */\n";
+    $output .= "@plugin \"$pluginPath\";\n\n";
+    $output .= $css->toCss();
 
-    while (count($arFrom) && count($arTo) && ($arFrom[0] == $arTo[0])) {
-      array_shift($arFrom);
-      array_shift($arTo);
-    }
-
-    return str_pad("", count($arFrom) * 3, '..' . $ps) . implode($ps, $arTo);
-  }
-
-  /**
-   * Flag build as started.
-   *
-   * @command neo:build:start
-   * @usage drush neo:build:start
-   *   Flag build as started.
-   * @aliases neo-build-start
-   */
-  public function neoBuildStart() {
-    Build::setNeoState('build', TRUE);
-    $this->output()->writeln(dt('<info>[neo]</info> Build has started.'));
-  }
-
-  /**
-   * Flag build as ended.
-   *
-   * @command neo:build:end
-   * @usage drush neo:build:end
-   *   Flag build as ended.
-   * @aliases neo-build-end
-   */
-  public function neoBuildEnd() {
-    Build::unsetNeoState('build');
-    Build::unsetNeoState('scope');
-    Build::unsetNeoState('group');
-    Cache::invalidateTags(['library_info', 'theme_registry']);
-    // Flush asset file caches.
-    // phpcs:disable
-    \Drupal::service('asset.css.collection_optimizer')->deleteAll();
-    \Drupal::service('asset.js.collection_optimizer')->deleteAll();
-    \Drupal::service('asset.query_string')->reset();
-    // phpcs:enable
-    $this->output()->writeln(dt('<info>[neo]</info> Build has ended.'));
-  }
-
-  /**
-   * Get vite dev server status.
-   *
-   * @return bool
-   *   Returns TRUE if in dev mode.
-   */
-  public function neoBuildDevEnabled() {
-    return Build::getNeoState('dev', FALSE);
-  }
-
-  /**
-   * Enable automatic tracking of vite dev server.
-   *
-   * @command neo:build:dev:enable
-   * @usage drush neo:build:dev:enable
-   *   Enable automatic tracking of vite dev server.
-   * @aliases neo-dev-enable
-   */
-  public function neoBuildDevEnable() {
-    if (!$this->neoBuildDevEnabled()) {
-      Build::setNeoState('dev', TRUE);
-      $root = $this->getRoot();
-
-      // Set pre-commit hook.
-      $moduleDir = $this->moduleExtensionList->getPath('neo_build');
-      $file = $this->appRoot . '/' . $moduleDir . '/git.pre-commit.txt';
-      $data = file_get_contents($file);
-      $this->fileSystem->saveData($data, $root . '/.git/hooks/pre-commit', FileExists::Replace);
-      $this->fileSystem->chmod($root . '/.git/hooks/pre-commit', 0777);
-
-      // Set lock file.
-      $this->fileSystem->saveData('', $root . '/_neo.lock', FileExists::Replace);
-
-      $this->output()->writeln(dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server enabled.'));
-    }
-  }
-
-  /**
-   * Disable automatic tracking of vite dev server.
-   *
-   * @command neo:build:dev:disable
-   * @usage drush neo:build:dev:disable
-   *   Disable automatic tracking of vite dev server.
-   * @aliases neo-dev-disable
-   */
-  public function neoBuildDevDisable() {
-    if ($this->neoBuildDevEnabled()) {
-      Build::unsetNeoState('dev');
-      $this->output()->writeln(dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server disabled.'));
-    }
-  }
-
-  /**
-   * Cleanup files created during build.
-   *
-   * @command neo:build:dev:cleanup
-   * @usage drush neo:build:dev:cleanup
-   *   Cleanup files created during build.
-   * @aliases neo-dev-cleanup
-   */
-  public function neoBuildCleanup() {
-    $root = $this->getRoot();
-    $this->fileSystem->delete($root . '/.git/hooks/pre-commit');
-    $this->fileSystem->delete($root . '/_neo.lock');
-    $this->output()->writeln('');
-    $this->output()->writeln(dt('<info>✔ [neo]</info> Build cleanup complete.'));
-
-    // Update compiled versions.
-    $config_factory = \Drupal::configFactory();
-    $config = $config_factory->getEditable('neo_build.info');
-    $extensions = neo_build_get_extensions();
-    foreach ($extensions as $name => $info) {
-      $version = $info['version'] ?? '0.0.0';
-      $config->set('versions.' . $name, $version);
-    }
-    $config->save();
-    $this->output()->writeln(dt('<info>✔ [neo]</info> Neo build versions updated.'));
+    $this->fileSystem->saveData($output, $primaryCssPath, FileExists::Replace);
   }
 
   /**
@@ -854,9 +252,8 @@ class DrushCommands extends CoreCommands {
     // not passed in, which is sufficient, since new extensions cannot have any
     // primed caches yet.
     // phpcs:disable
-    $module_handler = \Drupal::moduleHandler();
     // Flush all persistent caches.
-    $module_handler->invokeAll('cache_flush');
+    $this->moduleHandler->invokeAll('cache_flush');
     // Try to figure out the cache bins that need to be cleared.
     $bins = array_filter(Cache::getBins(), fn ($id) => in_array($id, [
       // 'static',
@@ -885,29 +282,6 @@ class DrushCommands extends CoreCommands {
   }
 
   /**
-   * Clear twig/template cache.
-   *
-   * @command neo:build:cli
-   * @usage drush neo:build:cli
-   *   The build CLI for Neo.
-   * @aliases neo-cli
-   */
-  public function neoBuildCli() {
-    $options = [];
-    $default = NULL;
-    foreach ($this->getAvailableThemes() as $key => $theme) {
-      if ($key === 'front') {
-        $default = $theme->info['name'];
-      }
-      $options[$key] = $theme->info['name'];
-    }
-    /** @var \Drush\Style\DrushStyle $io */
-    $io = $this->io();
-    $theme = $io->choice('Select a theme', $options, $default);
-    $this->output()->writeln($theme);
-  }
-
-  /**
    * Get Neo build scopes.
    *
    * @command neo:build:scopes
@@ -928,23 +302,82 @@ class DrushCommands extends CoreCommands {
   }
 
   /**
-   * Get Neo build groups.
+   * Get vite dev server status.
    *
-   * @command neo:build:groups
-   * @usage drush neo:build:groups
-   *   Get Neo build groups.
-   * @aliases neo-groups
+   * @return bool
+   *   Returns TRUE if in dev mode.
    */
-  public function neoBuildGroups($options = ['format' => 'table']) {
-    $groups = [];
-    foreach ($this->groupManager->getDefinitions() as $group => $definition) {
-      $groups[$group] = [
-        'id' => $group,
-        'label' => $definition['label'],
-        'description' => $definition['description'],
-      ];
+  public function neoBuildDevEnabled() {
+    return NeoBuild::getNeoState('dev', FALSE);
+  }
+
+  /**
+   * Enable automatic tracking of vite dev server.
+   *
+   * @command neo:build:dev:enable
+   * @usage drush neo:build:dev:enable
+   *   Enable automatic tracking of vite dev server.
+   * @aliases neo-dev-enable
+   */
+  public function neoBuildDevEnable() {
+    if (!$this->neoBuildDevEnabled()) {
+      NeoBuild::setNeoState('dev', TRUE);
+      $root = $this->getRoot();
+
+      // Set pre-commit hook.
+      $moduleDir = $this->moduleExtensionList->getPath('neo_build');
+      $file = $this->appRoot . '/' . $moduleDir . '/git.pre-commit.txt';
+      $data = file_get_contents($file);
+      $this->fileSystem->saveData($data, $root . '/.git/hooks/pre-commit', FileExists::Replace);
+      $this->fileSystem->chmod($root . '/.git/hooks/pre-commit', 0777);
+
+      // Set lock file.
+      $this->fileSystem->saveData('', $root . '/_neo.lock', FileExists::Replace);
+
+      $this->output()->writeln(dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server enabled.'));
     }
-    return new RowsOfFields($groups);
+  }
+
+  /**
+   * Disable automatic tracking of vite dev server.
+   *
+   * @command neo:build:dev:disable
+   * @usage drush neo:build:dev:disable
+   *   Disable automatic tracking of vite dev server.
+   * @aliases neo-dev-disable
+   */
+  public function neoBuildDevDisable() {
+    if ($this->neoBuildDevEnabled()) {
+      NeoBuild::unsetNeoState('dev');
+      $this->output()->writeln(dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server disabled.'));
+    }
+  }
+
+  /**
+   * Cleanup files created during build.
+   *
+   * @command neo:build:dev:cleanup
+   * @usage drush neo:build:dev:cleanup
+   *   Cleanup files created during build.
+   * @aliases neo-dev-cleanup
+   */
+  public function neoBuildCleanup() {
+    $root = $this->getRoot();
+    $this->fileSystem->delete($root . '/.git/hooks/pre-commit');
+    $this->fileSystem->delete($root . '/_neo.lock');
+    $this->output()->writeln('');
+    $this->output()->writeln(dt('<info>✔ [neo]</info> Build cleanup complete.'));
+
+    // Update compiled versions.
+    $config_factory = \Drupal::configFactory();
+    $config = $config_factory->getEditable('neo_build.info');
+    $extensions = $this->neoExtensionList->all();
+    foreach ($extensions as $name => $extension) {
+      $config->set('versions.' . $name, $extension->getVersion());
+    }
+
+    $config->save();
+    $this->output()->writeln(dt('<info>✔ [neo]</info> Neo build versions updated.'));
   }
 
   /**
@@ -956,27 +389,22 @@ class DrushCommands extends CoreCommands {
    * @aliases neo-install
    */
   public function neoBuildInstall() {
-    $moduleDir = $this->moduleExtensionList->getPath('neo_build');
-    $docRoot = $this->getRoot();
-    if (!$docRoot) {
+    $root = $this->getRoot();
+    if (!$root) {
       $this->output()->writeln(dt('<info>[neo]</info> Neo install failed. Could not find project root.'));
       return;
     }
-    $webRoot = $this->getWebRoot();
+    $docRoot = $this->getDocRoot();
+    $moduleDir = $this->moduleExtensionList->getPath('neo_build');
     $files = [
-      'package.json.install' => $docRoot,
-      'stylelint.config.cjs.install' => $docRoot,
-      'prettier.config.cjs.install' => $docRoot,
-      'postcss.config.cjs.install' => $docRoot,
-      'tailwind.config.mjs.install' => $docRoot,
-      'tsconfig.json.install' => $docRoot,
-      'vite.config.mjs.install' => $docRoot,
+      'package.json.install' => $root,
+      'tsconfig.json.install' => $root,
+      'vite.config.ts.install' => $root,
     ];
     $tokens = [
+      '[ROOT]' => $root,
       '[DOC-ROOT]' => $docRoot,
-      '[WEB-ROOT]' => $webRoot,
       '[MODULE-DIR]' => $moduleDir,
-      '[NEO-CONFIG-PATH]' => ltrim($this->fileUrlGenerator->generateString($this->neoConfigFileName), '/'),
     ];
     foreach ($files as $filename => $destination) {
       $file = $this->appRoot . '/' . $moduleDir . '/install/neo/' . $filename;
@@ -985,18 +413,57 @@ class DrushCommands extends CoreCommands {
         foreach ($tokens as $token => $value) {
           $data = str_replace($token, $value, $data);
         }
-        $this->fileSystem->saveData($data, $destination . '/' . str_replace('.install', '', $filename), FileExists::Replace);
+        $finalFilename = str_replace('.install', '', $filename);
+        $this->fileSystem->saveData($data, $destination . '/' . $finalFilename, FileExists::Replace);
         $this->output()->writeln(dt('<info>[neo]</info> Generated @file.', [
-          '@file' => '/' . $filename,
+          '@file' => '/' . $finalFilename,
         ]));
       }
     }
-    $this->output()->writeln(dt('<info>[neo]</info> Neo is ready. Please run "npm install" from project root.'));
+
+    // Update .ddev.
+    try {
+      $path = $root . '/.ddev/config.yaml';
+      if (file_exists($path)) {
+        $config = Yaml::parseFile($path);
+        if (!isset($config['web_extra_exposed_ports'])) {
+          $config['web_extra_exposed_ports'] = [];
+        }
+        $hasVite = array_filter($config['web_extra_exposed_ports'], function ($item) {
+          return isset($item['name']) && $item['name'] === 'vite';
+        });
+        if (!$hasVite) {
+          $config['web_extra_exposed_ports'][] = [
+            'name' => 'vite',
+            'container_port' => 5173,
+            'http_port' => 5172,
+            'https_port' => 5173,
+          ];
+          $this->fileSystem->saveData(Yaml::dump($config, 2, 2), $path, FileExists::Replace);
+          $this->output()->writeln(dt('<info>[neo]</info> Ddev configured for Vite. (requires ddev restart)'));
+        }
+        else {
+          $this->output()->writeln(dt('<info>[neo]</info> Ddev already configured for Vite.'));
+        }
+      }
+    }
+    catch (\Error $e) {
+      $this->output()->writeln(dt('<error>' . $e->getMessage() . '</error>'));
+    }
+
+    if (getenv('DDEV_PROJECT')) {
+      $this->output()->writeln(dt('<info>[neo]</info> Neo is ready. Please run "ddev ssh && npm install" from project root.'));
+    }
+    else {
+      $this->output()->writeln(dt('<info>[neo]</info> Neo is ready. Please run "npm install" from project root.'));
+    }
 
     $this->output()->writeln(dt('<info>  [neo]</info> Setup GrumPHP (optional)'));
-    $this->output()->writeln(dt('        Run the following command(s) from the project root:'));
+    $this->output()->writeln(dt('        Run the following commands from the project root:'));
     foreach ([
       'composer require --dev jacerider/grumphp-drupal',
+      'ddev exec grumphp git:init',
+      'ddev exec grumphp git:pre-commit',
     ] as $command) {
       $this->output()->writeln(dt('        - "@command"', [
         '@command' => $command,
@@ -1005,113 +472,34 @@ class DrushCommands extends CoreCommands {
   }
 
   /**
+   * Get the web root.
+   */
+  protected function getDocRoot() {
+    return str_replace('./', '', NestedArray::getValue(json_decode(file_get_contents($this->getRoot() . '/composer.json'), TRUE), [
+      'extra',
+      'drupal-scaffold',
+      'locations',
+      'web-root',
+    ]) ?? '/') . '/';
+  }
+
+  /**
    * Get the docroot.
    *
    * @return string
    *   The docroot.
    */
-  protected function getRoot() {
-    if (!isset($this->docRoot)) {
-      $this->docRoot = $this->appRoot . '/';
-      if (!file_exists($this->docRoot . 'composer.json')) {
-        $this->docRoot = $this->appRoot . '/../';
-        if (!file_exists($this->docRoot . 'composer.json')) {
+  private function getRoot() {
+    if (!isset($this->root)) {
+      $this->root = $this->appRoot . '/';
+      if (!file_exists($this->root . 'composer.json')) {
+        $this->root = $this->appRoot . '/../';
+        if (!file_exists($this->root . 'composer.json')) {
           return FALSE;
         }
       }
     }
-    return realpath($this->docRoot);
-  }
-
-  /**
-   * Get the web root.
-   */
-  protected function getWebRoot() {
-    return NestedArray::getValue(json_decode(file_get_contents($this->getRoot() . '/composer.json'), TRUE), [
-      'extra',
-      'drupal-scaffold',
-      'locations',
-      'web-root',
-    ]) ?? './';
-  }
-
-  /**
-   * Get scoped themes.
-   *
-   * @return \Drupal\Core\Extension\Extension[]
-   *   The scoped themes.
-   */
-  protected function getScopedThemes(string $scope) {
-    $scopes = $this->scopeManager->getDefinitions();
-    $available_themes = $this->getAvailableThemes();
-    $themes = [];
-    foreach ($available_themes as $theme => $extention) {
-      if (isset($extention->info['neo'])) {
-        if (!empty($extention->info['neo']['scope'])) {
-          $theme_scopes = $extention->info['neo']['scope'];
-          if (!is_array($theme_scopes)) {
-            $theme_scopes = [$theme_scopes];
-          }
-          foreach ($theme_scopes as $theme_scope) {
-            if (isset($scopes[$theme_scope]) && $theme_scope === $scope) {
-              $theme_extension = $available_themes[$theme];
-              $theme_extension->weight = count($available_themes[$theme]->requires) * -1;
-              foreach ($available_themes[$theme]->requires as $theme_key => $theme_data) {
-                if (empty($available_themes[$theme_key])) {
-                  // May not be a theme as modules as allowed as requirements.
-                  continue;
-                }
-                if ($theme_key === 'neo_base') {
-                  // Skip neo_base as it is always included.
-                  continue;
-                }
-                $required_extention = $available_themes[$theme_key];
-                if (is_array($required_extention->info['neo'])) {
-                  foreach (array_keys($this->tailwindDefault) as $layer) {
-                    if (isset($required_extention->info['neo'][$layer])) {
-                      $theme_extension->info['neo'][$layer] = array_merge($theme_extension->info['neo'][$layer] ?? [], $required_extention->info['neo'][$layer]);
-                    }
-                  }
-                }
-                $themes[$theme_key] = $required_extention;
-              }
-              $themes[$theme] = $theme_extension;
-            }
-          }
-        }
-        else {
-          // If no scope is specified, include in all scopes.
-          $themes[$theme] = $available_themes[$theme];
-        }
-      }
-    }
-    uasort($themes, function ($a, $b) {
-      return $a->weight <=> $b->weight;
-    });
-    return $themes;
-  }
-
-  /**
-   * Get available themes.
-   *
-   * @return \Drupal\Core\Extension\Extension[]
-   *   The available themes.
-   */
-  protected function getAvailableThemes() {
-    $themes = $this->themeExtensionList->reset()->getList();
-    foreach ($themes as $extention) {
-      if (isset($extention->info['neo'])) {
-        if (!is_array($extention->info['neo'])) {
-          $extention->info['neo'] = [];
-        }
-        // Enabled themes default to front scope and custom group.
-        $extention->info['neo'] += [
-          'scope' => 'front',
-          'group' => 'custom',
-        ] + $this->tailwindDefault;
-      }
-    }
-    return $themes;
+    return realpath($this->root);
   }
 
 }

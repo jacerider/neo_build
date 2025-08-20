@@ -1,6 +1,16 @@
 services:
   neo:
     class: Drupal\neo_build\Commands\DrushCommands
-    arguments: ['%app.root%', '@event_dispatcher', '@messenger', '@extension.list.module', '@module_handler', '@extension.list.theme', '@library.discovery', '@library.discovery.parser', '@file_system', '@file_url_generator', '@twig', '@plugin.manager.neo_build_scope', '@plugin.manager.neo_build_group']
+    arguments:
+      - '%app.root%'
+      - '@event_dispatcher'
+      - '@plugin.manager.neo_build_scope'
+      - '@file_system'
+      - '@extension.list.module'
+      - '@module_handler'
+      - '@theme_handler'
+      - '@library.discovery'
+      - '@extension.list.neo'
+      - '@twig'
     tags:
       - { name: drush.command }

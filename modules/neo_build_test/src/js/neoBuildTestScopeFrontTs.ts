@@ -5,5 +5,3 @@
   }
 
 })(Drupal, once);
-
-export {};

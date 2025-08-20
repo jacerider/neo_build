@@ -13,10 +13,8 @@ const prompts = require('@inquirer/prompts');
 const CONFIG = {
   commands: {
     getDrushScopes: 'drush neo-scopes --format=json',
-    getDrushGroups: 'drush neo-groups --format=json',
     setDrushDev: 'drush neo-dev-',
     drushNeo: 'drush neo',
-    drushBuildEnd: 'drush neo-build-end',
     vite: 'vite'
   }
 };
@@ -24,11 +22,9 @@ const CONFIG = {
 // CLI state
 const state = {
   scopes: null,
-  runScopes: [],
   target: process.env.npm_config_target || null,
   scope: process.env.npm_config_scope || null,
-  group: process.env.npm_config_group || null,
-  scopeAll: process.env.npm_config_scope_all || false
+  all: process.env.npm_config_all || false,
 };
 
 /**
@@ -87,19 +83,6 @@ function getScopes() {
 }
 
 /**
- * Get available groups from Drupal
- * @returns {Object} Available groups
- */
-function getGroups() {
-  const groupsJson = safeExec(CONFIG.commands.getDrushGroups);
-  if (!groupsJson) {
-    console.error(`${colors.red('[neo]')} Failed to fetch groups`);
-    process.exit(1);
-  }
-  return JSON.parse(groupsJson);
-}
-
-/**
  * Set development mode
  * @param {string} mode - 'enable' or 'disable'
  */
@@ -122,9 +105,8 @@ function cleanup() {
  * @param {string} scope - The scope
  * @param {string} group - The group (optional)
  */
-function runDrushNeo(scope, group) {
-  const groupParam = group ? ` ${group}` : '';
-  const command = `${CONFIG.commands.drushNeo} ${scope}${groupParam}`;
+function runDrushNeo(scope) {
+  const command = `${CONFIG.commands.drushNeo} ${scope}`;
   execAndShow(command);
 }
 
@@ -132,56 +114,31 @@ function runDrushNeo(scope, group) {
  * Run Vite for production
  * @param {string} group - The group
  */
-async function runViteProd(group) {
+async function runViteProd() {
   clear();
   console.log(`\n${colors.cyan('[neo]')} ${colors.yellow('Building for production...')}`);
-  const command = `VITE_BUILD=true npm start --target=prod --scope-all --group=${group}`;
-  execAndShow(command);
+  for (const [scope, details] of Object.entries(state.scopes)) {
+    cli('prod', scope);
+  }
+  cleanup();
+  console.log(`\n${colors.green('✔')} ${colors.cyan('[neo]')} All builds completed successfully`);
 }
 
 /**
  * Run Vite for a specific scope and group
  * @param {string} scope - The scope
  * @param {string} target - 'dev' or 'prod'
- * @param {string} group - The group (optional)
  * @returns {Promise<void>}
  */
-async function runVite(scope, target, group) {
+async function runVite(scope, target) {
   return new Promise((resolve, reject) => {
     let env = `NEO_SCOPE=${scope} `;
-    if (group) {
-      env += `NEO_GROUP=${group} `;
-    }
-
     let viteCommand = CONFIG.commands.vite;
     if (target !== 'dev') {
       viteCommand += ' build && tsc';
     }
-
     execAndShow(`${env}${viteCommand}`);
     resolve();
-  });
-}
-
-/**
- * Initialize CLI setup
- */
-function initializeState() {
-  // Handle scope-all flag
-  if (state.scopeAll) {
-    const scopes = getScopes();
-    state.runScopes = Object.keys(scopes);
-  } else if (state.scope) {
-    state.runScopes.push(state.scope);
-  }
-
-  let count = 0;
-  // Silently catch SIGINT and exit.
-  process.on('SIGINT', () => {
-    if (count > 0) {
-      process.exit(0);
-    }
-    count++;
   });
 }
 
@@ -214,56 +171,61 @@ async function promptForTarget() {
  * @returns {Promise<string>}
  */
 async function promptForScope() {
-  if (state.scopeAll || state.scope) return state.scope;
-
-  const scopes = getScopes();
-  const options = Object.entries(scopes).map(([key, scope]) => ({
+  if (state.scope) return state.scope;
+  const options = Object.entries(state.scopes).map(([key, scope]) => ({
     name: scope.label,
     value: scope.id,
     description: scope.description,
   }));
 
-  const selectedScope = await prompts.select({
+  return prompts.select({
     message: 'Select scope',
     choices: options,
   }).catch(() => process.exit(1));
-
-  state.runScopes.push(selectedScope);
-  return selectedScope;
 }
 
 /**
- * Prompt for group if in dev mode and not provided
- * @returns {Promise<string>}
+ * Initialize CLI setup
  */
-async function promptForGroup() {
-  if (state.target !== 'dev' || state.group) return state.group;
+function initializeCli() {
+  // Initialize scopes.
+  getScopes();
 
-  const groups = getGroups();
-  const options = Object.entries(groups).map(([key, group]) => ({
-    name: group.label,
-    value: group.id,
-    description: group.description,
-  }));
-
-  return prompts.select({
-    message: 'Select group',
-    choices: options,
-  }).catch(() => process.exit(1));
+  // Count number of exits.
+  let count = 0;
+  // Silently catch SIGINT and exit.
+  process.on('SIGINT', () => {
+    if (count > 0) {
+      process.exit(0);
+    }
+    count++;
+  });
 }
+
+initializeCli();
 
 /**
  * Run the CLI
  */
-async function cli() {
+async function cli(target, scope) {
   try {
 
-    initializeState();
+    // Run 'all' scope.
+    if (state.all) {
+      state.all = false;
+      runViteProd();
+      return;
+    }
 
     // Interactive prompts
-    state.target = await promptForTarget();
-    await promptForScope();
-    state.group = await promptForGroup();
+    state.target = target || await promptForTarget();
+    state.scope = scope || await promptForScope();
+
+    // Validate scope.
+    if (!state.scopes[state.scope]) {
+      console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Invalid scope: ${state.scope}. Available scopes are: ${Object.keys(state.scopes).join(', ')}.`);
+      process.exit(1);
+    }
 
     // Set dev mode based on target
     const devMode = state.target === 'prod' ? false : true;
@@ -277,24 +239,19 @@ async function cli() {
     }
 
     // Run Drupal Neo command for each scope
-    for (const scope of state.runScopes) {
-      runDrushNeo(scope, state.group);
-    }
+    runDrushNeo(state.scope);
 
-    // Run Vite for each scope
-    const scopePromises = state.runScopes.map(scope =>
-      runVite(scope, state.target, state.group)
-    );
-
-    await Promise.all(scopePromises);
-    if (!devMode) {
-      cleanup();
-      console.log(`\n${colors.green('✔')} ${colors.cyan('[neo]')} All builds completed successfully`);
+    runVite(state.scope, state.target).then(() => {
+      if (!devMode) {
+        process.exit(1);
+      }
+      else {
+        runViteProd();
+      }
+    }).catch((error) => {
+      console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed:`, error.message);
       process.exit(1);
-    }
-    else {
-      runViteProd(state.group);
-    }
+    });
   } catch (error) {
     console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed:`, error.message);
     process.exit(1);

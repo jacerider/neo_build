@@ -14,10 +14,10 @@ contribScss:
   # neo: TRUE
   ### Client-specific modules and themes should be in the 'custom' group.
   # neo: { group: custom }
-  neo: { group: contrib }
+  neo: true
   css:
     component:
-      src/css/neoBuildTestContribScss.scss: { minified: true }
+      src/css/neoBuildTestContribScss.css: { minified: true }
   js:
     src/js/neoBuildTestTs.ts: {}
   dependencies:
@@ -32,7 +32,7 @@ contribScss:
 ################################################################################
 customCss:
   version: VERSION
-  neo: { group: contrib }
+  neo: true
   css:
     component:
       src/css/neoBuildTestContribCss.css: { minified: true }
@@ -46,10 +46,10 @@ customCss:
 ################################################################################
 scopeFrontScss:
   version: VERSION
-  neo: { group: contrib, scope: front }
+  neo: { scope: front }
   css:
     component:
-      src/css/neoBuildTestScopeFrontScss.scss: { minified: true }
+      src/css/neoBuildTestScopeFrontScss.css: { minified: true }
   js:
     src/js/neoBuildTestScopeFrontTs.ts: {}
 ################################################################################
@@ -62,10 +62,10 @@ scopeFrontScss:
 ################################################################################
 scopeBackScss:
   version: VERSION
-  neo: { group: contrib, scope: back }
+  neo: { scope: back }
   css:
     component:
-      src/css/neoBuildTestScopeBackScss.scss: { minified: true }
+      src/css/neoBuildTestScopeBackScss.css: { minified: true }
   js:
     src/js/neoBuildTestScopeBackTs.ts: {}
 ################################################################################
@@ -76,10 +76,10 @@ require:
   dependencies: []
   neo:
     require:
-      src/css/require/neoBuildTestRequire.scss: {namespace: testRequire}
+      src/css/require/neoBuildTestRequire.css: {namespace: testRequire}
 include:
   version: VERSION
   dependencies: []
   neo:
     include:
-      src/css/include/neoBuildTestInclude.scss: {}
+      src/css/include/neoBuildTestInclude.css: {}
