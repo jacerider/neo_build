@@ -209,12 +209,6 @@ class DrushCommands extends CoreCommands {
     }
     $collection->clearTailwindComponents();
 
-    // foreach (['base', 'components', 'utilities'] as $layer) {
-    //   foreach ($collection->getTailwindUtilitiesLayer($layer) as $key => $value) {
-    //     $css->addUtility($key, $value, NULL, 'utilities');
-    //   }
-    // }
-    // print_r($collection->getTailwindUtilities());
     foreach ($collection->getTailwindUtilities() as $key => $value) {
       $css->addUtility($key, $value);
     }
