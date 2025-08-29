@@ -46,7 +46,11 @@ class NeoBuildCollection {
       'source' => [],
       'import' => [],
       'base' => [],
-      'theme' => [],
+      'theme' => [
+        'extend' => [],
+        'colors' => [],
+        'fontFamily' => [],
+      ],
       'utilities' => [],
       'components' => [],
       'variants' => [],
@@ -375,11 +379,9 @@ class NeoBuildCollection {
    */
   protected function addTailwindFromExtension(NeoExtension $extension): self {
     $path = $extension->getPath();
-    if ($extension->getType() === 'theme') {
-      foreach ($extension->getLibraries() as $libraryId => $library) {
-        if ($library->isImport()) {
-          $this->addTailwindImport($extension->getName() . ':Library:Global', $library->getCssPath());
-        }
+    foreach ($extension->getLibraries() as $libraryId => $library) {
+      if ($library->isImport()) {
+        $this->addTailwindImport($extension->getName() . ':Library:Global', $library->getCssPath());
       }
     }
     $this->addTailwindSource($extension->getName() . ':Files', $path . '/src/**/*.{js,ts,jsx,tsx,php}');
