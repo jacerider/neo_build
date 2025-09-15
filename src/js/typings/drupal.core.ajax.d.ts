@@ -227,6 +227,8 @@ declare namespace drupal {
 
       WRAPPER_FORMAT: string;
 
+      bindAjaxLinks(element: HTMLElement): void;
+
     }
 
     export interface IBehaviors {
