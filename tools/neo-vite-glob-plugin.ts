@@ -91,8 +91,6 @@ export default function cssGlobPlugin(options: CssGlobOptions = {}): Plugin {
         }
       }
 
-      console.log(transformedCode);
-
       return hasGlobs ? { code: transformedCode, map: null } : null;
     },
 
