@@ -21,20 +21,11 @@ function neo_build_requirements($phase) {
     /** @var \Drupal\neo_build\NeoExtensionList $neoExtensionList */
     $neoExtensionList = \Drupal::service('extension.list.neo');
     $extensions = $neoExtensionList->all();
-    ksm($extensions['neo_base']);
-    // ksm($neoExtensionList->all(['front']));
-    // foreach ($extensions as $extension) {
-    //   ksm($extension->getTailwindInfo());
-    // }
     ksort($extensions);
 
     foreach ($extensions as $name => $extension) {
       $versions[$name] = $extension->getVersion();
       $builtVersions[$name] = $config->get('versions.' . $name) ?? NULL;
-      // foreach ($extension->getLibraries() as $library) {
-      //   ksm($library->getIncludePaths());
-      //   ksm($library->getRequirePaths());
-      // }
     }
 
     $requirements['neo_build'] = [
