@@ -142,7 +142,7 @@ class NeoBuild {
         'toJs' => TRUE,
         'options' => [
           'type' => 'external',
-          'attributes' => ['type' => 'module'],
+          'attributes' => ['type' => 'module', 'neoCss' => TRUE],
         ],
       ];
     }
