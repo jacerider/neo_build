@@ -8,6 +8,7 @@ services:
       - '@file_system'
       - '@extension.list.module'
       - '@module_handler'
+      - '@extension.list.theme'
       - '@theme_handler'
       - '@library.discovery'
       - '@extension.list.neo'
