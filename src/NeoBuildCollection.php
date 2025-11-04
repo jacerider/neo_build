@@ -381,7 +381,7 @@ class NeoBuildCollection {
     $path = $extension->getPath();
     foreach ($extension->getLibraries() as $libraryId => $library) {
       if ($library->isImport()) {
-        $this->addTailwindImport($extension->getName() . ':Library:Global', $library->getCssPath());
+        $this->addTailwindImport($extension->getName() . ':' . $libraryId, $library->getCssPath());
       }
     }
     $this->addTailwindSource($extension->getName() . ':Files', $path . '/src/**/*.{js,ts,jsx,tsx,php}');
