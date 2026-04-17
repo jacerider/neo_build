@@ -62,7 +62,7 @@ class NeoBuild {
         ];
         continue;
       }
-      if ($neoLibrary = $this->neoExtensionList->getLibrary($extension, $libraryId)) {
+      if ($neoLibrary = $this->neoExtensionList->getLibrary($extension, $libraryId, $library)) {
         if ($neoLibrary->isImport()) {
           // Import libraries are automatically included in the main tailwind
           // CSS file. They are not actual libraries.

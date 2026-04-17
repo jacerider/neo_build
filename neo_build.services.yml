@@ -1,8 +1,6 @@
 services:
   neo_build:
-    # class: Drupal\neo_build\Build
     class: Drupal\neo_build\NeoBuild
-    # arguments: ['@messenger', '@logger.factory', '@extension.list.theme', '@extension.list.module', '@http_client', '@string_translation', '@plugin.manager.neo_build_scope', '%app.root%']
     arguments: ['@theme.manager', '@extension.list.neo']
 
   plugin.manager.neo_build_scope:
@@ -13,6 +11,13 @@ services:
     class: Drupal\neo_build\PathProcessor\PathProcessorNeoBuildAsset
     tags:
       - { name: path_processor_inbound, priority: 300 }
+
+  neo_build.inline_css_generator:
+    class: Drupal\neo_build\NeoInlineCssGenerator
+    arguments: ['@event_dispatcher', '@file_system', '@state', '@neo_build']
+    tags:
+      - { name: cache_tags_invalidator }
+      - { name: event_subscriber }
 
   extension.list.neo:
     class: Drupal\neo_build\NeoExtensionList

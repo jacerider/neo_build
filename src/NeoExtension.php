@@ -26,7 +26,7 @@ class NeoExtension {
    *
    * @var \Drupal\neo_build\NeoLibrary[]
    */
-  private array $libraries;
+  private array $libraries = [];
 
   /**
    * The extension info.
@@ -80,6 +80,19 @@ class NeoExtension {
    */
   public function setLibraries(array $libraries): self {
     $this->libraries = $libraries;
+    return $this;
+  }
+
+  /**
+   * Set a library associated with the extension.
+   *
+   * @param string $libraryName
+   *   The name of the library to set.
+   * @param \Drupal\neo_build\NeoLibrary $library
+   *   The library to set.
+   */
+  public function setLibrary(string $libraryName, NeoLibrary $library): self {
+    $this->libraries[$libraryName] = $library;
     return $this;
   }
 

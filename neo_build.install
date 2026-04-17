@@ -30,7 +30,7 @@ function neo_build_requirements($phase) {
 
     $requirements['neo_build'] = [
       'title' => t('Neo Build'),
-      'value' => t('Wow'),
+      'value' => t('The Neo Build module provides a build system for Drupal modules and themes using Vite.'),
       'description' => [
         '#type' => 'table',
         '#header' => [
@@ -53,7 +53,7 @@ function neo_build_requirements($phase) {
       $currentVersion = $versions[$name] ?? '0.0.0';
       $newVersion = $builtVersions[$name] ?? NULL;
       $row = [
-        'extension' => $extension->getLabel(),
+        'extension' => '(' . ucwords($extension->getType()) . ') ' . $extension->getLabel(),
         'version' => $currentVersion,
         'built_version' => [
           'data' => [

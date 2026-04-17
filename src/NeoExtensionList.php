@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\neo_build;
 
 use Drupal\Core\Asset\LibraryDiscoveryParser;
+use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandler;
 use Drupal\Core\Extension\ThemeExtensionList;
@@ -15,25 +16,18 @@ use Drupal\Core\Extension\ThemeExtensionList;
 final class NeoExtensionList {
 
   /**
-   * The loaded modules.
+   * The list of NeoExtensions, keyed by extension name.
    *
    * @var \Drupal\neo_build\NeoExtension[]
    */
-  private array $modules;
+  private array $neoExtensions = [];
 
   /**
-   * The loaded themes.
+   * The list of built NeoExtensions, keyed by extension name.
    *
    * @var \Drupal\neo_build\NeoExtension[]
    */
-  private array $themes;
-
-  /**
-   * Loaded libraries keyed by module/theme name.
-   *
-   * @var array
-   */
-  private array $libraries;
+  private array $neoExtensionsBuilt;
 
   /**
    * Constructs a NeoExtensionList object.
@@ -53,153 +47,180 @@ final class NeoExtensionList {
    *   support.
    */
   public function all(?array $scope = NULL): array {
-    $extensions = array_merge($this->modules($scope), $this->themes($scope));
-    uasort($extensions, function ($a, $b) {
-      return $a->getWeight() <=> $b->getWeight();
-    });
-    return $extensions;
-  }
+    if (!isset($this->neoExtensionsBuilt)) {
+      $neoExtensions = [];
 
-  /**
-   * Returns all modules with Neo Build support.
-   *
-   * @return \Drupal\neo_build\NeoExtension[]
-   *   An array of NeoExtension objects representing modules with Neo Build
-   *   support.
-   */
-  public function modules(?array $scope = NULL): array {
-    if (!isset($this->modules)) {
-      $this->modules = [];
-      $extensions = array_filter($this->moduleHandler->getModuleList(), function ($extension) {
+      $modules = array_filter($this->moduleExtensionList->getList(), function ($extension) {
+        /** @var \Drupal\Core\Extension\Extension $extension */
         return $this->moduleHandler->moduleExists($extension->getName());
       });
-      foreach ($extensions as $name => $extension) {
-        $info = $this->moduleExtensionList->getExtensionInfo($name);
-        $extension->info = $info;
-        $neoExtension = new NeoExtension($extension);
-        if (!empty($info['neo'])) {
-          $neoExtension->setLibraries($this->libraries($neoExtension, $scope));
-          $this->modules[$name] = $neoExtension;
-          // $this->modules[$name] = new NeoExtension($extension, $this->libraries($extension, $scope));
-        }
-        elseif (!isset($this->modules[$name])) {
-          $libraries = $this->libraries($neoExtension, $scope);
-          if ($libraries) {
-            $neoExtension->setLibraries($libraries);
-            $this->modules[$name] = $neoExtension;
-          }
-        }
-      }
-      uasort($this->modules, function ($a, $b) {
-        return $a->getWeight() <=> $b->getWeight();
-      });
-    }
-    if ($scope) {
-      return array_filter($this->modules, fn($module) => $module->allowScope($scope));
-    }
-    return $this->modules;
-  }
 
-  /**
-   * Returns all themes with Neo Build support.
-   *
-   * @return \Drupal\neo_build\NeoExtension[]
-   *   An array of NeoExtension objects representing themes with Neo Build
-   *   support.
-   */
-  public function themes(?array $scope = NULL): array {
-    if (!isset($this->themes)) {
-      $this->themes = [];
-      $extensions = array_filter($this->themeExtensionList->getList(), function ($extension) {
+      $themes = array_filter($this->themeExtensionList->getList(), function ($extension) {
         /** @var \Drupal\Core\Extension\Extension $extension */
         return $extension->status;
       });
+
+      $extensions = array_merge($modules, $themes);
       foreach ($extensions as $name => $extension) {
-        $info = $this->themeExtensionList->getExtensionInfo($name);
-        $extension->info = $info;
-        $neoExtension = new NeoExtension($extension);
-        if (!empty($info['neo'])) {
-          $neoExtension->setLibraries($this->libraries($neoExtension, $scope));
-          $neoExtension->setWeight(count($extension->requires));
-          $this->themes[$name] = $neoExtension;
+        if ($neoExtension = $extensionsToAdd[$name] ?? $this->loadExtension($name, $extension)) {
+          if (!empty($extension->info['neo'])) {
+            $neoExtensions[$name] = $neoExtension;
+          }
+          $libraries = $this->libraryDiscoveryParser->buildByExtension($name);
+          foreach ($libraries as $libraryName => $library) {
+            if ($neoLibrary = $this->getLibrary($name, $libraryName, $library)) {
+              $neoExtension->setLibrary($libraryName, $neoLibrary);
+              $neoExtensions[$name] = $neoExtension;
+            }
+          }
         }
       }
-      uasort($this->themes, function ($a, $b) {
+      uasort($neoExtensions, function ($a, $b) {
         return $a->getWeight() <=> $b->getWeight();
       });
+      $this->neoExtensionsBuilt = $neoExtensions;
     }
+
     if ($scope) {
-      return array_filter($this->themes, fn($theme) => $theme->allowScope($scope));
+      return array_filter($this->neoExtensionsBuilt, fn($neoExtension) => $neoExtension->allowScope($scope));
     }
-    return $this->themes;
+
+    return $neoExtensions;
   }
 
   /**
-   * Returns all libraries for a given extension.
+   * Gets or creates a NeoLibrary for a given library definition.
    *
-   * @param \Drupal\neo_build\NeoExtension $extension
-   *   The extension to get libraries for.
-   * @param array|null $scope
-   *   An optional array of scopes to filter libraries by.
-   *
-   * @return \Drupal\neo_build\NeoLibrary[]
-   *   An array of NeoLibrary objects representing the libraries for the
-   *   extension.
-   */
-  protected function libraries(NeoExtension $extension, ?array $scope = NULL): array {
-    $name = $extension->getName();
-    if (!isset($this->libraries[$name])) {
-      $this->libraries[$name] = [];
-      foreach ($this->libraryDiscoveryParser->buildByExtension($name) as $libraryName => $library) {
-        if (!empty($library['neo']) && !isset($this->modules[$name])) {
-          $this->libraries[$name][$libraryName] = new NeoLibrary($extension, $libraryName, $library);
-        }
-      }
-    }
-    if ($scope) {
-      return array_filter($this->libraries[$name], fn($library) => $library->allowScope($scope));
-    }
-    return $this->libraries[$name];
-  }
-
-  /**
-   * Returns a specific library by name.
-   *
-   * @param string $extensionName
-   *   The name of the extension the library belongs to.
+   * @param string $extension
+   *   The extension the library belongs to.
    * @param string $libraryName
-   *   The name of the library to retrieve.
-   * @param array|null $scope
-   *   An optional array of scopes to filter the library by.
+   *   The name of the library.
+   * @param array $library
+   *   The library definition.
    *
    * @return \Drupal\neo_build\NeoLibrary|null
-   *   The requested library, or NULL if it doesn't exist.
+   *   The NeoLibrary object, or NULL if the library is not Neo-enabled.
    */
-  public function getLibrary(string $extensionName, string $libraryName, ?array $scope = NULL): ?NeoLibrary {
-    $extensions = $this->all($scope);
-    foreach ($extensions as $extension) {
-      if ($extension->getName() === $extensionName) {
-        return $extension->getLibrary($libraryName);
+  public function getLibrary(string $extension, string $libraryName, array $library) {
+    if (!empty($library['neo'])) {
+      if ($neoExtension = $this->loadExtension($extension)) {
+        $library = $this->processLibrary($neoExtension->getPath(), $library);
+        $neoLibrary = new NeoLibrary($neoExtension, $libraryName, $library);
+        $neoExtension->setLibrary($libraryName, $neoLibrary);
+        return $neoLibrary;
       }
     }
-    return NULL;
   }
 
   /**
-   * Checks if a specific library exists.
+   * Caches libraries for a given extension.
    *
-   * @param string $extensionName
-   *   The name of the extension the library belongs to.
-   * @param string $libraryName
-   *   The name of the library to check.
-   * @param array|null $scope
-   *   An optional array of scopes to filter the library by.
+   * The libraries from hook_library_info_alter are in the nested format
+   * (css[category][path] = options, js[path] = options) because the alter
+   * fires before buildByExtension() flattens them. We normalize here so
+   * NeoLibrary receives the same flat format it gets from buildByExtension().
    *
-   * @return bool
-   *   TRUE if the library exists, FALSE otherwise.
+   * @param string $extensionPath
+   *   The path to the owning extension.
+   * @param array $library
+   *   The library information to process.
+   *
+   * @return array
+   *   The processed library information.
    */
-  public function hasLibrary(string $extensionName, string $libraryName, ?array $scope = NULL): bool {
-    return $this->getLibrary($extensionName, $libraryName, $scope) !== NULL;
+  protected function processLibrary(string $extensionPath, array $library): array {
+    // Normalize CSS from nested css[category][path] to flat css[]['data'].
+    if (!empty($library['css']) && !is_int(array_key_first($library['css']))) {
+      $flat = [];
+      foreach ($library['css'] as $files) {
+        if (!is_array($files)) {
+          continue;
+        }
+        foreach ($files as $source => $options) {
+          $options = is_array($options) ? $options : [];
+          $options['data'] = $options['data'] = $this->resolveSourcePath($source, $extensionPath);
+          $flat[] = $options;
+        }
+      }
+      $library['css'] = $flat;
+    }
+    // Normalize JS from js[path] to flat js[]['data'].
+    if (!empty($library['js']) && !is_int(array_key_first($library['js']))) {
+      $flat = [];
+      foreach ($library['js'] as $source => $options) {
+        $options = is_array($options) ? $options : [];
+        $options['data'] = $options['data'] = $this->resolveSourcePath($source, $extensionPath);
+        $flat[] = $options;
+      }
+      $library['js'] = $flat;
+    }
+    return $library;
+  }
+
+  /**
+   * Resolves a source path the same way buildByExtension() does.
+   *
+   * @param string $source
+   *   The source path from the library definition.
+   * @param string $extensionPath
+   *   The path to the owning extension.
+   *
+   * @return string
+   *   The resolved path.
+   */
+  private function resolveSourcePath(string $source, string $extensionPath): string {
+    // External or protocol-free URI.
+    if (str_contains($source, '://') || str_starts_with($source, '//')) {
+      return $source;
+    }
+    // Absolute path (relative to DRUPAL_ROOT).
+    if ($source[0] === '/') {
+      return substr($source, 1);
+    }
+    // Relative path — prepend extension path.
+    return $extensionPath . '/' . $source;
+  }
+
+  /**
+   * Loads or creates a NeoExtension for a single extension.
+   *
+   * This avoids triggering a full loadModules()/loadThemes() discovery,
+   * which is critical when called during hook_library_info_alter.
+   *
+   * @param string $name
+   *   The extension machine name.
+   * @param \Drupal\Core\Extension\Extension|null $extension
+   *   An optional Extension object, if already available. If not provided, it
+   *   will be loaded if the extension exists.
+   *
+   * @return \Drupal\neo_build\NeoExtension|null
+   *   The NeoExtension object, or NULL if the extension cannot be found.
+   */
+  private function loadExtension(string $name, ?Extension $extension = NULL): ?NeoExtension {
+    if (isset($this->neoExtensions[$name])) {
+      return $this->neoExtensions[$name];
+    }
+
+    $this->neoExtensions[$name] = NULL;
+    if (!$extension) {
+      if ($this->moduleHandler->moduleExists($name)) {
+        $extension = $this->moduleExtensionList->get($name);
+      }
+      elseif ($this->themeExtensionList->get($name)) {
+        $extension = $this->themeExtensionList->get($name);
+      }
+    }
+    if (!$extension) {
+      return NULL;
+    }
+
+    $neoExtension = new NeoExtension($extension);
+    $this->neoExtensions[$name] = $neoExtension;
+    if ($neoExtension->getType() === 'theme') {
+      $neoExtension->setWeight(count($extension->requires));
+    }
+
+    return $neoExtension;
   }
 
   /**
