@@ -79,7 +79,7 @@ class DrushCommands extends CoreCommands {
     $this->themeHandler->refreshInfo();
 
     $scopeDefinition = $this->scopeManager->getDefinition($scope);
-    $this->output()->writeln(dt('<info>⟢ [neo]</info> Prepare Scope: @scope', [
+    $this->output()->writeln((string) dt('<info>⟢ [neo]</info> Prepare Scope: @scope', [
       '@scope' => $scopeDefinition['label'],
     ]));
 
@@ -144,7 +144,7 @@ class DrushCommands extends CoreCommands {
     $this->fileSystem->saveData($collection->toTsJson(), $root . '/neo.tsconfig.json', FileExists::Replace);
     $this->fileSystem->saveData($collection->toStanYaml(), $root . '/phpstan.neon', FileExists::Replace);
 
-    $this->output()->writeln(dt('<info>⟢ [neo]</info> Prepare Success'));
+    $this->output()->writeln((string) dt('<info>⟢ [neo]</info> Prepare Success'));
     $this->output()->writeln('');
 
     Cache::invalidateTags(['exo_build:build']);
@@ -339,7 +339,7 @@ class DrushCommands extends CoreCommands {
       // Set lock file.
       $this->fileSystem->saveData('', $root . '/_neo.lock', FileExists::Replace);
 
-      $this->output()->writeln(dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server enabled.'));
+      $this->output()->writeln((string) dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server enabled.'));
     }
   }
 
@@ -354,7 +354,7 @@ class DrushCommands extends CoreCommands {
   public function neoBuildDevDisable() {
     if ($this->neoBuildDevEnabled()) {
       NeoBuild::unsetNeoState('dev');
-      $this->output()->writeln(dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server disabled.'));
+      $this->output()->writeln((string) dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server disabled.'));
     }
   }
 
@@ -371,7 +371,7 @@ class DrushCommands extends CoreCommands {
     $this->fileSystem->delete($root . '/.git/hooks/pre-commit');
     $this->fileSystem->delete($root . '/_neo.lock');
     $this->output()->writeln('');
-    $this->output()->writeln(dt('<info>✔ [neo]</info> Build cleanup complete.'));
+    $this->output()->writeln((string) dt('<info>✔ [neo]</info> Build cleanup complete.'));
 
     // Update compiled versions.
     $config_factory = \Drupal::configFactory();
@@ -382,7 +382,7 @@ class DrushCommands extends CoreCommands {
     }
 
     $config->save();
-    $this->output()->writeln(dt('<info>✔ [neo]</info> Neo build versions updated.'));
+    $this->output()->writeln((string) dt('<info>✔ [neo]</info> Neo build versions updated.'));
   }
 
   /**
@@ -396,7 +396,7 @@ class DrushCommands extends CoreCommands {
   public function neoBuildInstall() {
     $root = $this->getRoot();
     if (!$root) {
-      $this->output()->writeln(dt('<info>[neo]</info> Neo install failed. Could not find project root.'));
+      $this->output()->writeln((string) dt('<info>[neo]</info> Neo install failed. Could not find project root.'));
       return;
     }
     $docRoot = $this->getDocRoot();
@@ -420,8 +420,24 @@ class DrushCommands extends CoreCommands {
         }
         $finalFilename = str_replace('.install', '', $filename);
         $this->fileSystem->saveData($data, $destination . '/' . $finalFilename, FileExists::Replace);
-        $this->output()->writeln(dt('<info>[neo]</info> Generated @file.', [
+        $this->output()->writeln((string) dt('<info>[neo]</info> Generated @file.', [
           '@file' => '/' . $finalFilename,
+        ]));
+      }
+    }
+
+    // Copy Claude Code skills into the project's .claude/skills directory.
+    $skillsSource = $this->appRoot . '/' . $moduleDir . '/install/skills';
+    if (is_dir($skillsSource)) {
+      $skillFiles = $this->fileSystem->scanDirectory($skillsSource, '/.*/');
+      foreach ($skillFiles as $skillFile) {
+        $relative = ltrim(str_replace($skillsSource, '', $skillFile->uri), '/');
+        $skillTarget = $root . '/.claude/skills/' . $relative;
+        $skillDir = dirname($skillTarget);
+        $this->fileSystem->prepareDirectory($skillDir, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
+        $this->fileSystem->copy($skillFile->uri, $skillTarget, FileExists::Replace);
+        $this->output()->writeln((string) dt('<info>[neo]</info> Installed skill @file.', [
+          '@file' => '.claude/skills/' . $relative,
         ]));
       }
     }
@@ -445,32 +461,32 @@ class DrushCommands extends CoreCommands {
             'https_port' => 5173,
           ];
           $this->fileSystem->saveData(Yaml::dump($config, 2, 2), $path, FileExists::Replace);
-          $this->output()->writeln(dt('<info>[neo]</info> Ddev configured for Vite. (requires ddev restart)'));
+          $this->output()->writeln((string) dt('<info>[neo]</info> Ddev configured for Vite. (requires ddev restart)'));
         }
         else {
-          $this->output()->writeln(dt('<info>[neo]</info> Ddev already configured for Vite.'));
+          $this->output()->writeln((string) dt('<info>[neo]</info> Ddev already configured for Vite.'));
         }
       }
     }
     catch (\Error $e) {
-      $this->output()->writeln(dt('<error>' . $e->getMessage() . '</error>'));
+      $this->output()->writeln((string) dt('<error>' . $e->getMessage() . '</error>'));
     }
 
     if (getenv('DDEV_PROJECT')) {
-      $this->output()->writeln(dt('<info>[neo]</info> Neo is ready. Please run "ddev ssh && npm install" from project root.'));
+      $this->output()->writeln((string) dt('<info>[neo]</info> Neo is ready. Please run "ddev ssh && npm install" from project root.'));
     }
     else {
-      $this->output()->writeln(dt('<info>[neo]</info> Neo is ready. Please run "npm install" from project root.'));
+      $this->output()->writeln((string) dt('<info>[neo]</info> Neo is ready. Please run "npm install" from project root.'));
     }
 
-    $this->output()->writeln(dt('<info>  [neo]</info> Setup GrumPHP (optional)'));
-    $this->output()->writeln(dt('        Run the following commands from the project root:'));
+    $this->output()->writeln((string) dt('<info>  [neo]</info> Setup GrumPHP (optional)'));
+    $this->output()->writeln((string) dt('        Run the following commands from the project root:'));
     foreach ([
       'composer require --dev jacerider/grumphp-drupal',
       'ddev exec grumphp git:init',
       'ddev exec grumphp git:pre-commit',
     ] as $command) {
-      $this->output()->writeln(dt('        - "@command"', [
+      $this->output()->writeln((string) dt('        - "@command"', [
         '@command' => $command,
       ]));
     }
@@ -488,9 +504,9 @@ class DrushCommands extends CoreCommands {
    *   If no index or no server were passed or passed values are invalid.
    */
   public function neoTemplate() {
-    $themeId = $this->io()->choice(dt('Select the theme:'), [
-      'front' => dt('Front Theme'),
-      'back' => dt('Back Theme'),
+    $themeId = $this->io()->choice((string) dt('Select the theme:'), [
+      'front' => (string) dt('Front Theme'),
+      'back' => (string) dt('Back Theme'),
     ]);
     $baseTheme = $this->themeExtensionList->get('neo_base');
     $baseThemePath = $baseTheme->getPath();
@@ -500,14 +516,14 @@ class DrushCommands extends CoreCommands {
     $fileSystem = \Drupal::service('file_system');
     $files = $fileSystem->scanDirectory($baseThemePath . '/templates', '/.*\.html.twig.example$/');
     if (!$files) {
-      $this->io()->error(dt('No template files found.'));
+      $this->io()->error((string) dt('No template files found.'));
       return;
     }
     $fileOptions = [];
     foreach ($files as $file) {
       $fileOptions[$file->uri] = str_replace('.example', '', $file->filename);
     }
-    $fileUri = $this->io()->choice(dt('Select the template file:'), $fileOptions);
+    $fileUri = $this->io()->choice((string) dt('Select the template file:'), $fileOptions);
 
     $variationName = $this->io()->ask('Template variation name', required: TRUE, validate: function ($answer) {
       if (!preg_match('/^[\-a-z]+[\-a-z0-9]*$/', $answer)) {
@@ -519,20 +535,21 @@ class DrushCommands extends CoreCommands {
     $destination = str_replace('.html.twig.example', '--' . $variationName . '.html.twig', $destination);
 
     if (file_exists($destination)) {
-      $this->io()->error(dt('The template file @file already exists.', ['@file' => $destination]));
+      $this->io()->error((string) dt('The template file @file already exists.', ['@file' => $destination]));
       return;
     }
 
     $fileSystem->prepareDirectory(dirname($destination), FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
     $fileSystem->copy($fileUri, $destination);
-    $this->io()->success(dt('Template file @file created successfully.', ['@file' => $destination]));
+    $this->io()->success((string) dt('Template file @file created successfully.', ['@file' => $destination]));
   }
 
   /**
    * Get the web root.
    */
   protected function getDocRoot() {
-    return str_replace('./', '', NestedArray::getValue(json_decode(file_get_contents($this->getRoot() . '/composer.json'), TRUE), [
+    $composerData = json_decode(file_get_contents($this->getRoot() . '/composer.json'), TRUE);
+    return str_replace('./', '', NestedArray::getValue($composerData, [
       'extra',
       'drupal-scaffold',
       'locations',
