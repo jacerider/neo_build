@@ -243,7 +243,9 @@ async function cli(target, scope) {
 
     runVite(state.scope, state.target).then(() => {
       if (!devMode) {
-        process.exit(1);
+        // Prod build finished successfully — exit 0 so callers (ddev exec, CI)
+        // don't report a false failure.
+        process.exit(0);
       }
       else {
         runViteProd();
