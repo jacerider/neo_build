@@ -72,13 +72,18 @@ Alchemist extends SDC with custom "shapes" — reusable prop definitions from [n
 - `media` — Drupal media entity reference.
 
 ### Style shapes (applied as CSS classes via attributes)
-- `scheme` — color scheme selector.
-- `containment` — horizontal width (`xs|sm|md|lg|full`). Set `apply: true` to auto-add the class.
-- `spacing` — vertical component spacing (`xs|sm|md|lg|xl|2xl|3xl`). Already has `apply: true` by default.
-- `text_align` — `left|center|right`.
-- `heading_size` — `xs|sm|md|lg|xl|2xl|3xl`. Attached automatically to the `heading` shape.
-- `button_style` — solid/outline/text variants in base/primary/secondary/accent.
-- `button_size` — `xs|sm|md|lg|xl|2xl|3xl`.
+
+> **Authoritative styling guide:** [web/modules/contrib/neo_alchemist/STYLING.md](web/modules/contrib/neo_alchemist/STYLING.md) covers schemes, colors, spacing, and containers in full. The essentials are summarized here and in the Twig patterns below.
+
+- `scheme` — color-scheme selector. With `apply: true` it adds a `scheme-*` class to the root, which **re-scopes every color utility** (`bg-default`, `text-default`, `bg-primary`, …) to the chosen scheme. Let the scheme recolor the component; don't hardcode one scheme's colors.
+- `spacing` — vertical component spacing (`xs|sm|md|lg|xl|2xl|3xl`). Has `apply: true` built in: it adds a `component-spacing-*` class to the root, which sets the `--spacing-component` CSS variable. You **consume** that variable with `my-component`/`py-component` etc. — the prop itself does NOT add `my-component` (see Twig patterns).
+- `containment` — horizontal width (`xs|sm|md|lg|full`). `apply: true` to auto-add. (Or use the `container-content` / `container-center` utilities directly — see Twig patterns.)
+- `text_align` — `left|center|right` → `text-left|center|right`.
+- `heading_size` — `xs|sm|md|lg|xl|2xl|3xl` → `title-*`. Attached automatically to the `heading` shape (rendered via `<div{{ heading.size }}>`).
+- `button_style` — solid/outline/text variants in base/primary/secondary/accent (`btn`, `btn-outline-primary`, `btn-text-accent`, …).
+- `button_size` — `xs|sm|md|lg|xl|2xl|3xl` → `btn-*`.
+
+> `component-bg` is **not** a prop — it's a marker class you add (with `bg-default`) to a background-section root so adjacent same-scheme sections collapse their doubled spacing. See the "Root element & structure" Twig patterns below.
 
 ### Structural shapes
 - `region` — a nested drop zone where editors can place more components (used for tabs, accordions, containers with children).
@@ -123,24 +128,34 @@ And render in Twig with `{% block content %}{% endblock %}`. See [web/modules/co
 
 ## The `.twig` file
 
-### Required patterns
+### Root element & structure
+
+Always put `{{ attributes.addClass(classes) }}` on a **single root element** — Alchemist injects the classes from `apply: true` style props (scheme, spacing, …) there. Pick one of two layout patterns depending on whether the component paints a background.
+
+**Plain component (no background)** — spacing as margin so it collapses with neighbors:
 
 ```twig
-{%
-  set classes = [
-    'container-content',   # or 'container-content my-component'
-    'my-component',
-  ]
-%}
-<div{{ attributes.addClass(classes) }}>
+<div {{ attributes.addClass(['container-content', 'my-component']) }}>
   ...
 </div>
 ```
 
-- Always output `{{ attributes }}` (or `attributes.addClass(...)`) on the root element — Alchemist injects classes from style props with `apply: true` here.
-- Wrap everything in a single root element.
-- Use `container-content` for standard width OR `container-content my-component` depending on whether spacing should collapse with neighbors.
-- `my-component` adds the vertical spacing class resolved from the `spacing` prop.
+**Background / full-bleed section** — background spans the viewport, content is constrained, spacing as padding so the background fills it:
+
+```twig
+{% set classes = ['bg-default', 'component-bg'] %}   {# scheme-aware bg + collapse marker #}
+<div {{ attributes.addClass(classes) }}>              {# full-width background #}
+  <div class="container-content py-component">         {# centered content + vertical spacing #}
+    ...
+  </div>
+</div>
+```
+
+Rules of thumb:
+- **`container-content`** = centered, responsive max-width, **with** side gutters (the standard content wrapper). **`container-center`** = same but **no** gutters. Both are provided globally by the neo base theme.
+- **`my-component`** (margin — collapses between stacked components) vs **`py-component`** (padding — for background sections, since margin sits outside the background). Both read `--spacing-component` set by the `spacing` prop; size variants exist (`p-component-sm`, `m-component-lg`, …).
+- **`component-bg`** marker: add it (alongside `bg-default`) to a background-section root so two adjacent same-scheme sections collapse their doubled spacing into a single, continuous-background gap.
+- **Colors:** prefer `bg-default` / `text-default` (scheme-reactive) for surfaces and body text; use the `base|primary|secondary|accent` palettes (shades `-0…-950`, with `-content` foreground pairings, e.g. `bg-primary text-primary-content`) for emphasis. Full details in [web/modules/contrib/neo_alchemist/STYLING.md](web/modules/contrib/neo_alchemist/STYLING.md).
 
 ### Rendering props
 
@@ -190,6 +205,25 @@ Image carousels use the built-in `swiper()` Twig function — see [web/modules/c
 7. **Test interactive elements** with `{% if neoIsPreview %}data-event...{% endif %}` so the editor preview remains clickable.
 8. **Clear the cache** (`drush cr`) after adding a new component — SDC registration is cached.
 
+## Preview & iterate
+
+Each Alchemist SDC has a live preview workspace:
+
+```
+/admin/config/neo/alchemist/preview/{provider}:{machine_name}
+```
+
+e.g. `/admin/config/neo/alchemist/preview/front:accordion_test`. There you can:
+- Edit every editable prop/style (scheme, spacing, alignment, text, …) and see the
+  preview refresh instantly — great for sanity-checking `examples` and prop wiring.
+- Use the **Above** / **Below** selectors to render neighbor components around the one
+  you're previewing — the right way to test spacing between stacked components and the
+  `component-bg` same-color collapse.
+- View at desktop/tablet/mobile widths.
+
+With the neo build watcher running, edits to the `.twig`/`.css`/`.yml` reload the
+preview automatically.
+
 ## Common pitfalls
 
 - **Forgetting `neo: true`** — component won't appear in Alchemist's picker.
@@ -198,6 +232,9 @@ Image carousels use the built-in `swiper()` Twig function — see [web/modules/c
 - **Not wrapping in `{% if prop %}`** — component renders empty scaffolding when editor leaves fields blank.
 - **Using `heading.title` for the `<h2>`** but forgetting `<div{{ heading.size }}>` — heading size prop won't apply.
 - **New style prop with `apply: true` but missing `examples`** — class won't be present on first render.
+- **Using `my-component` on a background section** — margin sits *outside* the background, leaving an unfilled gap. Background sections use `py-component` on the inner `container-content` wrapper, with `bg-default` + `component-bg` on the root.
+- **Background section without the `component-bg` marker** — two adjacent same-color sections stack double padding. Add `component-bg` (next to `bg-default`) so the seam collapses.
+- **Hardcoding one scheme's colors** (e.g. `bg-base-0`) on a component meant to be recolored — prefer `bg-default`/`text-default` so the `scheme` prop can recolor it.
 - **Placeholder image dimensions out of sync with the twig transform** — the `placehold.co/WxH.png` URL (and `width`/`height` fields) in the prop's `examples:` should match the dimensions produced by `neo_image_style()` / `neo_image()` in the twig. The right target depends on the size op (see [web/modules/contrib/neo_image/README.md](web/modules/contrib/neo_image/README.md)):
   - Fixed-output ops — `scaleCrop`, `crop`, `focal`, `exact`, and `auto` with both width+height: placeholder must be exactly `{width}x{height}`. E.g. `{scaleCrop: {width: 300, height: 200}}` → `placehold.co/300x200.png`, `width: 300, height: 200`.
   - Width-only ops — `scale`, `focalWidth`, and `auto` with only width (or only height): output keeps the source aspect, so pick a placeholder that matches the *intended display aspect* (e.g. a `scale: {width: 1200}` slot shown in a 4:3 container → `placehold.co/1200x900.png`).
