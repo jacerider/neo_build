@@ -75,7 +75,7 @@ Alchemist extends SDC with custom "shapes" — reusable prop definitions from [n
 
 > **Authoritative styling guide:** [web/modules/contrib/neo_alchemist/STYLING.md](web/modules/contrib/neo_alchemist/STYLING.md) covers schemes, colors, spacing, and containers in full. The essentials are summarized here and in the Twig patterns below.
 
-- `scheme` — color-scheme selector. With `apply: true` it adds a `scheme-*` class to the root, which **re-scopes every color utility** (`bg-default`, `text-default`, `bg-primary`, …) to the chosen scheme. Let the scheme recolor the component; don't hardcode one scheme's colors.
+- `scheme` — color-scheme selector. With `apply: true` it adds a `scheme-*` class to the root, which **re-scopes every color utility** (`bg-default`, `bg-primary`, …) to the chosen scheme — and a scheme region adapts its default **text color, border color, link colors, and `.btn*` button colors automatically** (see "What the scheme system handles for you"). Let the scheme recolor the component; don't hardcode one scheme's colors.
 - `spacing` — vertical component spacing (`xs|sm|md|lg|xl|2xl|3xl`). Has `apply: true` built in: it adds a `component-spacing-*` class to the root, which sets the `--spacing-component` CSS variable. You **consume** that variable with `my-component`/`py-component` etc. — the prop itself does NOT add `my-component` (see Twig patterns).
 - `containment` — horizontal width (`xs|sm|md|lg|full`). `apply: true` to auto-add. (Or use the `container-content` / `container-center` utilities directly — see Twig patterns.)
 - `text_align` — `left|center|right` → `text-left|center|right`.
@@ -155,7 +155,23 @@ Rules of thumb:
 - **`container-content`** = centered, responsive max-width, **with** side gutters (the standard content wrapper). **`container-center`** = same but **no** gutters. Both are provided globally by the neo base theme.
 - **`my-component`** (margin — collapses between stacked components) vs **`py-component`** (padding — for background sections, since margin sits outside the background). Both read `--spacing-component` set by the `spacing` prop; size variants exist (`p-component-sm`, `m-component-lg`, …).
 - **`component-bg`** marker: add it (alongside `bg-default`) to a background-section root so two adjacent same-scheme sections collapse their doubled spacing into a single, continuous-background gap.
-- **Colors:** prefer `bg-default` / `text-default` (scheme-reactive) for surfaces and body text; use the `base|primary|secondary|accent` palettes (shades `-0…-950`, with `-content` foreground pairings, e.g. `bg-primary text-primary-content`) for emphasis. Full details in [web/modules/contrib/neo_alchemist/STYLING.md](web/modules/contrib/neo_alchemist/STYLING.md).
+- **Colors:** apply `bg-default` (scheme-reactive) where you want a surface fill — text and borders inside a scheme then adapt **automatically with no class** (see next section). Use the `base|primary|secondary|accent` palettes (shades `-0…-950`, with `-content` foreground pairings, e.g. `bg-primary text-primary-content`) for emphasis. Full details in [web/modules/contrib/neo_alchemist/STYLING.md](web/modules/contrib/neo_alchemist/STYLING.md).
+- **Prefer `base`; gray is a fallback.** Use `base` / `bg-default` for neutrals in components you author — that's the house style — and convert `gray-*` to `base-*` when adapting pasted markup. As a safety net, Tailwind's neutral scales (`gray`, `slate`, `zinc`, `neutral`, `stone`) auto-fall back to `base` when those pallets aren't enabled, so copied markup using `bg-gray-100`, `text-slate-700`, etc. still renders correctly and stays scheme-reactive. (Non-neutral colors like `blue`/`red` are **not** aliased.)
+
+### What the scheme system handles for you
+
+Inside any `scheme-*` region (including the un-schemed page root), these adapt with **no classes at all** — every scheme picks contrast-checked values, including dark and colorized schemes. Writing extra color classes for these is at best redundant and at worst fights the scheme:
+
+| Concern | What to write | What NOT to write |
+|---|---|---|
+| Body text | nothing — inherits the scheme's readable foreground | `text-default` (only needed to *re-assert* after an override), `text-base-900` |
+| Borders | just a border width (`border`, `border-t-4`) | `border-default`, per-scheme border colors |
+| Text links | a bare `<a>` — gets scheme-aware link + hover colors | `text-primary-600 hover:text-primary-800` |
+| Buttons | the `.btn*` classes (`btn`, `btn-primary`, `btn-outline-accent`, `btn-text-secondary`, …) | hand-built buttons from `bg-*`/`text-*` utilities — they won't retune per scheme and lose the managed hover states |
+| Prose links | `prose` — links inside it follow the scheme link color | per-link color classes |
+
+Semantic CSS variables, for component-local CSS or inline styles (all scheme-scoped):
+`--text-color-default`, `--background-color-default`, `--color-border-default`, `--link-color` / `--link-color-hover`, `--color-{base|primary|secondary|accent}-{0…950}` (+ `-content`), and `--color-shadow-{0…950}` — a brand-tinted shadow ramp **guaranteed darker than the surface** in every scheme (use it for `box-shadow` colors that won't glow on dark/colorized schemes, e.g. `box-shadow: 0 8px 20px -6px rgb(var(--color-shadow-500) / 0.45)`).
 
 ### Rendering props
 
@@ -224,6 +240,12 @@ e.g. `/admin/config/neo/alchemist/preview/front:accordion_test`. There you can:
 With the neo build watcher running, edits to the `.twig`/`.css`/`.yml` reload the
 preview automatically.
 
+**Always sanity-check a component under more than one scheme** (the Color Scheme
+style prop in the preview): at minimum the default, one dark, and one colorized
+scheme. `/admin/config/neo/scheme-preview` shows every enabled scheme's surfaces,
+button matrix, link colors, and palette ramps — the reference for what your
+component's colors will resolve to per scheme.
+
 ## Common pitfalls
 
 - **Forgetting `neo: true`** — component won't appear in Alchemist's picker.
@@ -234,7 +256,9 @@ preview automatically.
 - **New style prop with `apply: true` but missing `examples`** — class won't be present on first render.
 - **Using `my-component` on a background section** — margin sits *outside* the background, leaving an unfilled gap. Background sections use `py-component` on the inner `container-content` wrapper, with `bg-default` + `component-bg` on the root.
 - **Background section without the `component-bg` marker** — two adjacent same-color sections stack double padding. Add `component-bg` (next to `bg-default`) so the seam collapses.
-- **Hardcoding one scheme's colors** (e.g. `bg-base-0`) on a component meant to be recolored — prefer `bg-default`/`text-default` so the `scheme` prop can recolor it.
+- **Dynamic Tailwind class names never compile.** The build only emits classes that appear **literally** in scanned source — `bg-{{ color }}-500`, `'text-' ~ tone`, or classes assembled in JS produce nothing in the CSS. Enumerate full class names (in the yml `styles:` values, a Twig mapping, or a comment), or use inline CSS variables for genuinely data-driven color: `style="background-color: rgb(var(--color-{{ pallet }}-500))"` works because the *variables* always exist.
+- **Hardcoding one scheme's colors** (e.g. `bg-base-0`) on a component meant to be recolored — use `bg-default` for the surface and let text/borders adapt automatically so the `scheme` prop can recolor it.
+- **Coloring links or buttons by hand** — `text-primary-600` on an `<a>`, or a "button" built from `bg-primary text-white` utilities, will be unreadable on some schemes (the bare brand tokens can match the surface on colorized schemes). Bare `<a>` elements and the `.btn*` classes are contrast-managed per scheme, hover states included.
 - **Placeholder image dimensions out of sync with the twig transform** — the `placehold.co/WxH.png` URL (and `width`/`height` fields) in the prop's `examples:` should match the dimensions produced by `neo_image_style()` / `neo_image()` in the twig. The right target depends on the size op (see [web/modules/contrib/neo_image/README.md](web/modules/contrib/neo_image/README.md)):
   - Fixed-output ops — `scaleCrop`, `crop`, `focal`, `exact`, and `auto` with both width+height: placeholder must be exactly `{width}x{height}`. E.g. `{scaleCrop: {width: 300, height: 200}}` → `placehold.co/300x200.png`, `width: 300, height: 200`.
   - Width-only ops — `scale`, `focalWidth`, and `auto` with only width (or only height): output keeps the source aspect, so pick a placeholder that matches the *intended display aspect* (e.g. a `scale: {width: 1200}` slot shown in a 4:3 container → `placehold.co/1200x900.png`).
