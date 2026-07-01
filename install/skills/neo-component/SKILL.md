@@ -51,7 +51,9 @@ Key fields:
 
 ## Prop types (Alchemist shapes)
 
-Alchemist extends SDC with custom "shapes" — reusable prop definitions from [neo_alchemist.neo_component_prop_defs.yml](web/modules/contrib/neo_alchemist/neo_alchemist.neo_component_prop_defs.yml). Use these by name rather than raw JSON Schema:
+Alchemist extends SDC with custom "shapes" — reusable prop definitions from [neo_alchemist.neo_component_prop_defs.yml](web/modules/contrib/neo_alchemist/neo_alchemist.neo_component_prop_defs.yml). Use these by name rather than raw JSON Schema.
+
+> **Get shapes from the CLI (authoritative):** `drush neo:alchemist:shapes` lists every available shape; `drush neo:alchemist:shapes <name>` (e.g. `heading`) dumps that shape's resolved schema, a paste-ready `.component.yml` prop snippet, and its Twig render pattern. Prefer this over guessing from the summary below.
 
 ### Content shapes
 - `heading` — object with `supertitle`, `title`, `subtitle`, `size`, `anchor`. Always provide `examples` with the three text fields.
@@ -61,12 +63,12 @@ Alchemist extends SDC with custom "shapes" — reusable prop definitions from [n
 - `image-uri` — just an image URL.
 - `file` — object `{src, title, name}` for downloadable files.
 - `remote_video` — YouTube/Vimeo embed `{src, thumbnail, title}`.
-- `icon` — icon machine name (rendered via `icon(name)` Twig function).
+- `icon` — icon machine name (rendered via `icon(name)` Twig function). Find valid names with `drush neo:icon:list <search>` (e.g. `drush neo:icon:list arrow`) — don't guess, invalid names render nothing.
 - `link` — button-style link `{uri, title, options, icon, target, access}`. Usually paired with a `button_style`.
 - `url` — similar to link but for anchor-style links.
 - `email`, `telephone`, `uri` — single-value types.
 - `address` — postal address object.
-- `menu` — array of menu items `{title, description, icon, url}`.
+- `menu` — editable list of nav items `{title, description, icon, url}` (each item's `url` is a full `url` shape, so it keeps `target`/`access`; use `item.title` for the label). Prefer this for navigation over a hand-rolled `array` of links.
 - `breadcrumb` — array of `{title, url}`.
 - `slug` — anchor/slug string.
 - `media` — Drupal media entity reference.
@@ -88,6 +90,8 @@ Alchemist extends SDC with custom "shapes" — reusable prop definitions from [n
 ### Structural shapes
 - `region` — a nested drop zone where editors can place more components (used for tabs, accordions, containers with children).
 - `array` — a repeater. Pair with `items:` to define the per-row schema, and provide `examples:` with sample rows (use `TRUE` as a placeholder entry if the items have no required text fields).
+
+> **Reach for a semantic composite shape before hand-rolling an `array` of objects.** Several shapes already model common repeating structures — `menu` (nav links), `breadcrumb`, `address`, `file`, `remote_video`, `media` — and single composites like `link`/`url` and `heading`. They're one line instead of a nested `array → object → …`, get a purpose-built editor UI, and carry the right sub-fields (e.g. a `menu` item's `url` is the full `url` shape). Only hand-roll an `array` when no existing shape fits. Run `drush neo:alchemist:shapes` to scan them first.
 
 ### Inline custom `style` shapes
 Define a per-component style selector inline:
@@ -202,6 +206,20 @@ When the component has interactive state (tabs, accordions), expose event hooks 
 >
 ```
 
+### Fixed / floating roots and the preview iframe
+
+A component whose root is `position: fixed` (or `absolute`) has **no flow height**, so the Alchemist preview iframe — which sizes to document height — collapses and the component looks blank even though it renders. Render it **in-flow for preview**: switch the positioning behind `{% if neoIsPreview %}`, and give it a solid background if it's normally transparent (e.g. a header that overlays a hero). `drush neo:alchemist:render` renders the preview branch by default; add `--live` to render the runtime (`neoIsPreview` false) path.
+
+```twig
+{% set classes = ['transition-all'] %}
+{% if neoIsPreview %}
+  {% set classes = classes|merge(['relative', 'bg-default']) %}   {# in-flow + visible in the iframe #}
+{% else %}
+  {% set classes = classes|merge(['fixed', 'top-0', 'inset-x-0', 'z-50']) %}
+{% endif %}
+<header {{ attributes.addClass(classes) }}> … </header>
+```
+
 ### Alpine.js
 
 Add `- neo/library.alpine` to `libraryOverrides.dependencies` in the yml. For the Collapse plugin, also `{{ attach_library('neo/library.alpine.collapse') }}` at the top of the twig. Use `x-data`, `x-show`, `x-collapse`, `x-cloak` as normal.
@@ -212,7 +230,7 @@ Image carousels use the built-in `swiper()` Twig function — see [web/modules/c
 
 ## Workflow for a new component
 
-1. **Pick a machine name** — snake_case, typically `<purpose>_s<n>` (e.g. `testimonial_s1`). Check it's not already taken in [web/themes/front/components/](web/themes/front/components/).
+1. **Pick a machine name** — snake_case, typically `<purpose>_s<n>` (e.g. `testimonial_s1`). Confirm it's not already taken with `drush neo:alchemist:components` (lists every Neo component with its provider, prop, and slot counts).
 2. **Find the closest existing component** and read its yml + twig. Copy that pattern — don't invent from scratch.
 3. **Create the folder** at `web/themes/front/components/<name>/`.
 4. **Write `<name>.component.yml`** — always include `$schema`, `name`, `status: stable`, `neo: true`, and a `spacing` prop. Use existing shapes (`heading`, `markup`, `image`, etc.) rather than raw JSON Schema types.
@@ -220,6 +238,7 @@ Image carousels use the built-in `swiper()` Twig function — see [web/modules/c
 6. **Write `<name>.twig`** — root div with `{{ attributes.addClass(classes) }}`, wrap optional sections in `{% if ... %}`, use `neo_uri()` for all URLs, `icon()` for icons, `neo_image_style()` for images.
 7. **Test interactive elements** with `{% if neoIsPreview %}data-event...{% endif %}` so the editor preview remains clickable.
 8. **Clear the cache** (`drush cr`) after adding a new component — SDC registration is cached.
+9. **Verify from the CLI before finishing** — run `drush neo:alchemist:validate <provider>:<name>` then `drush neo:alchemist:render <provider>:<name>`. Don't hand off a component you haven't rendered. See "Verify from the CLI" below.
 
 ## Preview & iterate
 
@@ -242,11 +261,38 @@ preview automatically.
 
 **Always sanity-check a component under more than one scheme** (the Color Scheme
 style prop in the preview): at minimum the default, one dark, and one colorized
-scheme. `/admin/config/neo/scheme-preview` shows every enabled scheme's surfaces,
-button matrix, link colors, and palette ramps — the reference for what your
-component's colors will resolve to per scheme.
+scheme. Get the list of enabled schemes with `drush neo:color:schemes` (id,
+label, and whether each is dark/colorized), then render under one with
+`drush neo:alchemist:render <id> --scheme=<scheme>`. `/admin/config/neo/scheme-preview`
+shows every enabled scheme's surfaces, button matrix, link colors, and palette
+ramps — the reference for what your component's colors will resolve to per scheme.
+
+## Verify from the CLI
+
+You don't need a browser to confirm a component works. Two commands close the loop:
+
+- **`drush neo:alchemist:validate <provider>:<name>`** — static lint. Flags missing
+  `neo: true`, props with no `examples`, unknown prop types, `{% if/for %}` references
+  to props that aren't declared, and dynamically-assembled Tailwind classes that won't
+  compile. Exits non-zero on hard errors.
+- **`drush neo:alchemist:render <provider>:<name>`** — renders the component headlessly
+  from its `examples` and reports PASS/FAIL, surfacing Twig/render errors as a message
+  instead of a white screen. Add `--html` to print the markup, `--scheme=<id>` to render
+  under a scheme, and `--live` to render the runtime path (`neoIsPreview` false) instead
+  of the editor preview.
+
+Supporting introspection: `drush neo:alchemist:components` (list all), `drush neo:alchemist:info <id>`
+(one component's resolved props/slots/libraries), `drush neo:alchemist:shapes [name]`,
+`drush neo:icon:list <search>` (icon names, from Neo Icon), `drush neo:color:schemes`
+(color schemes, from Neo Color). All tabular commands accept `--format=json` for
+machine parsing.
 
 ## Common pitfalls
+
+> Most of the pitfalls below are now caught automatically — run `drush neo:alchemist:validate <id>`
+> and `drush neo:alchemist:render <id>` and they'll flag missing `neo: true`, missing
+> `examples`, unknown prop types, and dynamic Tailwind classes before you ship.
+
 
 - **Forgetting `neo: true`** — component won't appear in Alchemist's picker.
 - **Raw `{{ url }}` instead of `{{ neo_uri(link.uri, link.options) }}`** — breaks internal `internal:/` URIs.
@@ -264,4 +310,5 @@ component's colors will resolve to per scheme.
   - Width-only ops — `scale`, `focalWidth`, and `auto` with only width (or only height): output keeps the source aspect, so pick a placeholder that matches the *intended display aspect* (e.g. a `scale: {width: 1200}` slot shown in a 4:3 container → `placehold.co/1200x900.png`).
   - Responsive `neo_image()` with multiple breakpoints: use the largest breakpoint's dimensions for the placeholder.
   - Items rendered via a shared include (e.g. `@front/includes/list_s1--items.html.twig` uses `scaleCrop: 75x75`): match the include's dimensions, not the wrapper component.
+- **Fixed/floating component blank in the Alchemist preview** — a `position: fixed`/`absolute` root has no flow height, so the preview iframe collapses. Render it in-flow (`relative`) behind `{% if neoIsPreview %}`, with a solid background if it's normally transparent. See "Fixed / floating roots and the preview iframe".
 - **Clearing cache** — after editing `.component.yml`, run `drush cr` or the prop changes won't reflect.
