@@ -215,10 +215,12 @@ A component whose root is `position: fixed` (or `absolute`) has **no flow height
 {% if neoIsPreview %}
   {% set classes = classes|merge(['relative', 'bg-default']) %}   {# in-flow + visible in the iframe #}
 {% else %}
-  {% set classes = classes|merge(['fixed', 'top-0', 'inset-x-0', 'z-50']) %}
+  {% set classes = classes|merge(['fixed', 'top-displace-t', 'inset-x-0', 'z-50']) %}
 {% endif %}
 <header {{ attributes.addClass(classes) }}> … </header>
 ```
+
+**Pin to `top-displace-t`, not `top-0`.** A `fixed`/`sticky` root pinned to `top-0` renders *behind* the Drupal admin toolbar for logged-in users. `top-displace-t` sets `top: var(--spacing-displace-t)`, which resolves to the toolbar height (`--drupal-displace-offset-top`, `0px` when there's no toolbar) — so the element sits just below the toolbar for admins and flush with the top for anonymous visitors. This mirrors the theme's own `.region--header` ([web/themes/front/templates/region/region--header.html.twig](web/themes/front/templates/region/region--header.html.twig)). Related utilities from the same displace tokens: `mt-displace-t` (margin), `h-displace`/`min-h-displace`/`max-h-displace` (viewport height minus toolbars).
 
 ### Alpine.js
 
@@ -311,4 +313,5 @@ machine parsing.
   - Responsive `neo_image()` with multiple breakpoints: use the largest breakpoint's dimensions for the placeholder.
   - Items rendered via a shared include (e.g. `@front/includes/list_s1--items.html.twig` uses `scaleCrop: 75x75`): match the include's dimensions, not the wrapper component.
 - **Fixed/floating component blank in the Alchemist preview** — a `position: fixed`/`absolute` root has no flow height, so the preview iframe collapses. Render it in-flow (`relative`) behind `{% if neoIsPreview %}`, with a solid background if it's normally transparent. See "Fixed / floating roots and the preview iframe".
+- **Fixed/sticky component hidden behind the admin toolbar** — pinning a `fixed`/`sticky` root to `top-0` puts it under the Drupal toolbar for logged-in users. Use `top-displace-t` instead (offsets by the toolbar height, `0px` when absent). See "Fixed / floating roots and the preview iframe".
 - **Clearing cache** — after editing `.component.yml`, run `drush cr` or the prop changes won't reflect.
