@@ -426,9 +426,21 @@ class DrushCommands extends CoreCommands {
       }
     }
 
-    // Copy Claude Code skills into the project's .claude/skills directory.
-    $skillsSource = $this->appRoot . '/' . $moduleDir . '/install/skills';
-    if (is_dir($skillsSource)) {
+    // Copy Claude Code skills into the project's .claude/skills directory. Skills
+    // are aggregated from every enabled module's install/skills directory (keyed
+    // by relative path to dedupe), so each module can ship the skills it owns. Neo
+    // Build's own path is included explicitly. Iterating the module list (rather
+    // than the neo extension list) keeps this side-effect free — it must not
+    // trigger neo library processing just to copy files.
+    $skillSources = [$moduleDir => $this->appRoot . '/' . $moduleDir . '/install/skills'];
+    foreach ($this->moduleHandler->getModuleList() as $module) {
+      $modulePath = $module->getPath();
+      $skillSources[$modulePath] = $this->appRoot . '/' . $modulePath . '/install/skills';
+    }
+    foreach ($skillSources as $skillsSource) {
+      if (!is_dir($skillsSource)) {
+        continue;
+      }
       $skillFiles = $this->fileSystem->scanDirectory($skillsSource, '/.*/');
       foreach ($skillFiles as $skillFile) {
         $relative = ltrim(str_replace($skillsSource, '', $skillFile->uri), '/');
