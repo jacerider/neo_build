@@ -180,6 +180,11 @@ class NeoBuild {
     if ($jsPath = $neoLibrary->getJsPath()) {
       if ($distPath = $this->manifest->getDistPath($jsPath)) {
         $rewrites['js']['path'] = $distPath;
+        // Serve the dist chunks as ES modules so their minified top-level vars
+        // stay module-scoped. As classic scripts they leak to globals, and two
+        // chunks reusing a name (e.g. `A`) throw a redeclaration error that
+        // aborts the file. Mirrors rewriteLibraryForDev().
+        $rewrites['js']['options']['attributes']['type'] = 'module';
       }
     }
     return $rewrites;
