@@ -20,6 +20,14 @@ module.exports = {
     if (process.env.NODE_ENV !== 'development') {
       config.lib = {
         entry: neo.vite.lib,
+        // Emit only the ES module format. In lib mode with multiple entries
+        // Vite also builds a `cjs` format whose chunks use the `.cjs`
+        // extension, and (being built last) those win the manifest. NeoBuild
+        // loads these chunks as `type="module"`, but some hosts (e.g. Pantheon
+        // nginx) serve `.cjs` as `text/plain`, so strict MIME checking rejects
+        // the module script and the chunk never runs. The `es` output uses the
+        // `.js` extension, which every server serves as JavaScript.
+        formats: ['es'],
       };
     }
     return config;
