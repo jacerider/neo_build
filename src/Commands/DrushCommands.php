@@ -84,7 +84,7 @@ class DrushCommands extends CoreCommands {
     ]));
 
     NeoBuild::setNeoState('scope', $scope);
-    // Example: /Users/jacerider/Sites/augustAsh/rhls.
+    // Example: /Users/*/Sites/*/*.
     $root = $this->getRoot();
     // Example: web/.
     $docRoot = $this->getDocRoot();
@@ -389,11 +389,14 @@ class DrushCommands extends CoreCommands {
    * Install project build support.
    *
    * @command neo:build:install
+   * @option claude Scaffold the personal Claude Code phpcs hook.
    * @usage drush neo:build:install
    *   Install project build support.
+   * @usage drush neo:build:install --claude
+   *   Also scaffold the Claude Code phpcs hook (.claude, gitignored).
    * @aliases neo-install
    */
-  public function neoBuildInstall() {
+  public function neoBuildInstall(array $options = ['claude' => FALSE]) {
     $root = $this->getRoot();
     if (!$root) {
       $this->output()->writeln((string) dt('<info>[neo]</info> Neo install failed. Could not find project root.'));
@@ -426,12 +429,13 @@ class DrushCommands extends CoreCommands {
       }
     }
 
-    // Copy Claude Code skills into the project's .claude/skills directory. Skills
-    // are aggregated from every enabled module's install/skills directory (keyed
-    // by relative path to dedupe), so each module can ship the skills it owns. Neo
-    // Build's own path is included explicitly. Iterating the module list (rather
-    // than the neo extension list) keeps this side-effect free — it must not
-    // trigger neo library processing just to copy files.
+    // Copy Claude Code skills into the project's .claude/skills directory.
+    // Skills are aggregated from every enabled module's install/skills
+    // directory (keyed by relative path to dedupe), so each module can ship
+    // the skills it owns. Neo Build's own path is included explicitly.
+    // Iterating the module list (rather than the neo extension list) keeps
+    // this side-effect free — it must not trigger neo library processing
+    // just to copy files.
     $skillSources = [$moduleDir => $this->appRoot . '/' . $moduleDir . '/install/skills'];
     foreach ($this->moduleHandler->getModuleList() as $module) {
       $modulePath = $module->getPath();
@@ -502,6 +506,104 @@ class DrushCommands extends CoreCommands {
         '@command' => $command,
       ]));
     }
+
+    if (!empty($options['claude'])) {
+      $this->installClaudeHook($root, $moduleDir);
+    }
+  }
+
+  /**
+   * Scaffolds the personal Claude Code phpcs hook.
+   *
+   * Copies the hook script into .claude/hooks and merges a PostToolUse hook
+   * into the developer's local (gitignored) .claude/settings.local.json, so
+   * edits to Drupal PHP get linted with phpcs. Idempotent — it never clobbers
+   * existing settings, and the config stays out of git.
+   *
+   * @param string $root
+   *   The project root.
+   * @param string $moduleDir
+   *   The neo_build module path, relative to the app root.
+   */
+  protected function installClaudeHook(string $root, string $moduleDir): void {
+    $template = $this->appRoot . '/' . $moduleDir
+      . '/install/claude/phpcs-check.sh';
+    if (!file_exists($template)) {
+      return;
+    }
+    $hookDir = $root . '/.claude/hooks';
+    $this->fileSystem->prepareDirectory(
+      $hookDir,
+      FileSystemInterface::CREATE_DIRECTORY
+      | FileSystemInterface::MODIFY_PERMISSIONS
+    );
+    $hookTarget = $hookDir . '/phpcs-check.sh';
+    $this->fileSystem->copy($template, $hookTarget, FileExists::Replace);
+    $this->fileSystem->chmod($hookTarget, 0755);
+
+    $command = 'bash "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/phpcs-check.sh"';
+    $settingsPath = $root . '/.claude/settings.local.json';
+    $settings = [];
+    if (file_exists($settingsPath)) {
+      $decoded = json_decode(file_get_contents($settingsPath), TRUE);
+      if (is_array($decoded)) {
+        $settings = $decoded;
+      }
+    }
+    $entries = $settings['hooks']['PostToolUse'] ?? [];
+    $present = FALSE;
+    foreach ($entries as $entry) {
+      foreach ($entry['hooks'] ?? [] as $hook) {
+        if (str_contains($hook['command'] ?? '', 'phpcs-check.sh')) {
+          $present = TRUE;
+        }
+      }
+    }
+    if (!$present) {
+      $entries[] = [
+        'matcher' => 'Edit|Write',
+        'hooks' => [
+          [
+            'type' => 'command',
+            'command' => $command,
+            'timeout' => 60,
+            'statusMessage' => 'phpcs (Drupal)',
+          ],
+        ],
+      ];
+      $settings['hooks']['PostToolUse'] = $entries;
+      $json = json_encode(
+        $settings,
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+      );
+      $this->fileSystem->saveData(
+        $json . "\n",
+        $settingsPath,
+        FileExists::Replace
+      );
+    }
+
+    $this->ensureClaudeGitignore($root);
+    $this->output()->writeln((string) dt(
+      '<info>[neo]</info> Installed Claude Code phpcs hook (personal).'
+    ));
+  }
+
+  /**
+   * Ensures the personal Claude Code config is gitignored.
+   *
+   * @param string $root
+   *   The project root.
+   */
+  protected function ensureClaudeGitignore(string $root): void {
+    $path = $root . '/.gitignore';
+    $data = file_exists($path) ? file_get_contents($path) : '';
+    if (str_contains($data, '/.claude/settings.local.json')) {
+      return;
+    }
+    $data .= "\n# Claude Code personal config (not shared with the team)\n"
+      . "/.claude/settings.local.json\n/.claude/hooks/\n";
+    $this->fileSystem->saveData($data, $path, FileExists::Replace);
   }
 
   /**
