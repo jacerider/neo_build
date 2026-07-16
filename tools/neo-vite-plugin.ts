@@ -170,6 +170,63 @@ const neoVitePost = (config:any): Plugin => {
 
   return {
     name: 'neo:vite:post',
+
+    /**
+     * Wraps a chunk in an IIFE when it would otherwise declare globals.
+     *
+     * The lib build emits the `es` format (see neo-vite.cjs), which leaves
+     * top-level `class`/`function` declarations exposed. Loaded as classic
+     * scripts those become globals, and two chunks minified to the same name
+     * (e.g. `class b`) collide. NeoBuild used to compensate by serving every
+     * chunk as `type="module"`, but a module script is deferred, which silently
+     * voids Drupal's asset dependency ordering — a chunk could run before
+     * jQuery or Drupal existed. Scoping the chunk at build time instead lets it
+     * load as an ordinary classic script that Drupal can order.
+     *
+     * Most entrypoints are authored as an IIFE already, so their compiled chunk
+     * is a lone expression statement that declares nothing and needs no help.
+     * Wrapping those too is harmless but pointless, so the decision is made off
+     * the parsed chunk rather than guessed: if every top-level node is an
+     * expression, there is no binding to contain. Anything else — a
+     * declaration, a bare `for` initialiser — gets wrapped.
+     *
+     * A chunk that genuinely imports or exports cannot be wrapped at all: the
+     * ESM syntax would become a parse error inside a function body. None do
+     * today (the entrypoints are self-contained), but rather than emit a broken
+     * chunk, leave it alone and say so — it needs `type="module"` to load, and
+     * NeoBuild no longer applies it.
+     */
+    renderChunk: function (this: any, code: string, chunk: any) {
+      if (chunk.imports?.length || chunk.exports?.length || chunk.dynamicImports?.length) {
+        process.stdout.write(
+          `${colors.yellow('[neo]')} ${chunk.fileName} uses ESM syntax, so it was left unwrapped. ` +
+          `Its top-level names are globals and it will not be scoped. See neoVitePost().\n`
+        );
+        return null;
+      }
+
+      let declaresBindings = true;
+      try {
+        // Rollup's own parser — no guessing, and no extra dependency.
+        const ast: any = this.parse(code);
+        declaresBindings = !ast.body.every((node: any) => node.type === 'ExpressionStatement');
+      }
+      catch (e) {
+        // Could not prove the chunk is clean, so assume it is not. Wrapping a
+        // chunk that did not need it costs a closure; skipping one that did
+        // costs a global collision at runtime.
+      }
+
+      if (!declaresBindings) {
+        return null;
+      }
+
+      return {
+        code: `(function(){\n${code}\n})();\n`,
+        map: null
+      };
+    },
+
     transform: async (code: string, id: string) => {
       if (code.includes('@assets/')) {
         // Replace @assets with the correct path to the module or theme assets

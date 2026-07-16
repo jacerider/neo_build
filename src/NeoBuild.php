@@ -180,11 +180,23 @@ class NeoBuild {
     if ($jsPath = $neoLibrary->getJsPath()) {
       if ($distPath = $this->manifest->getDistPath($jsPath)) {
         $rewrites['js']['path'] = $distPath;
-        // Serve the dist chunks as ES modules so their minified top-level vars
-        // stay module-scoped. As classic scripts they leak to globals, and two
-        // chunks reusing a name (e.g. `A`) throw a redeclaration error that
-        // aborts the file. Mirrors rewriteLibraryForDev().
-        $rewrites['js']['options']['attributes']['type'] = 'module';
+        // Deliberately loaded as a classic script, unlike rewriteLibraryForDev()
+        // where the Vite dev server serves real ES modules.
+        //
+        // These chunks were served as `type="module"` to keep their minified
+        // top-level names from leaking to globals and colliding. But a module
+        // script is deferred: it runs after the document parses, whatever
+        // position Drupal gave it. That voids the ordering the whole library
+        // dependency system rests on — `dependencies: [core/jquery]` still put
+        // jQuery on the page but no longer guaranteed it ran first — and on the
+        // AJAX/BigPipe path, where scripts are injected at runtime rather than
+        // parsed, load order decayed into network timing and failed at random.
+        //
+        // The chunks are scoped at build time now, so there is nothing to
+        // contain here.
+        //
+        // @see \Drupal\neo_build\NeoBuild::rewriteLibraryForDev()
+        // @see neo_build/tools/neo-vite-plugin.ts (neoVitePost renderChunk)
       }
     }
     return $rewrites;
