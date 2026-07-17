@@ -20,6 +20,17 @@ Full human reference: [web/modules/contrib/neo_build/README.md](web/modules/cont
 - **Two-step build** — `drush neo:build <scope>` (alias `neo`) regenerates `neo.json` (the manifest of entrypoints for that scope); Vite then compiles them to `dist/`. The npm CLI orchestrates both: it calls `drush neo <scope>` then runs Vite.
 - **Generated / ignored** — `neo.json` and `neo.tsconfig.json` are generated (git-ignored). `_neo.lock` is the dev-mode lock file.
 
+## Step 0 — is the dev server running?
+
+Before running **any** build, check `drush neo-status` (`--format=json` for scripting). The `status` field is the verdict:
+
+- **DEV** — a dev server is live. Changes in its scope are already served via HMR: src TS/CSS, `.twig`, `.component.yml`, `.php`, `.info.yml` and `.libraries.yml` edits are all watched, with cache clears and `neo.json` regeneration handled for you. Run **nothing**. Changes in the *other* scope still serve stale `dist/` — but a prod build would disconnect the dev session, so coordinate with the user instead of forcing one (Ctrl+C on their watcher terminal auto-runs a full prod build of all scopes).
+- **PROD** — no dev server. Build normally: `npm run build:front` / `npm run build:back` for one scope, `npm run deploy` for all.
+- **STALE** — dev state is on but the server died without cleanup. `npm run deploy` restores `dist/` assets.
+- **ORPHANED** — a server is answering but Drupal isn't using it. Restart `npm start` or stop the server.
+
+Prod builds **refuse to run** while a dev server is answering (override: `--force`). The refusal is not an error to work around — it means the change is already live.
+
 ## What do I run after editing…?
 
 | You changed | Do this |
@@ -29,21 +40,25 @@ Full human reference: [web/modules/contrib/neo_build/README.md](web/modules/cont
 | A **new Tailwind class** in a `front` component/template | Rebuild the **front** scope. Dev server running → HMR picks it up. Otherwise `npm start` (choose front) or `drush neo:build front` + Vite build. |
 | A class in an **admin/back-theme** asset | Rebuild the **back** scope (admin = back theme). Both scopes if it's shared. |
 | `src/*.ts` or `src/css/*.css` in a `neo: true` library | Dev server → HMR. For committed output: `npm run deploy` (all scopes) or `npm start` (one). |
-| `*.libraries.yml` or info.yml `neo:`/`theme:` keys | `drush cr` first (library defs are cached), then rebuild the affected scope. |
+| `*.libraries.yml` or info.yml `neo:`/`theme:` keys | Dev server running → watcher handles it (cache clear + `neo.json` regen). Otherwise `drush cr` first (library defs are cached), then rebuild the affected scope. |
 | Added/edited a module's `install/skills/*` | `drush neo:build:install` to re-aggregate into `.claude/skills`. |
 
-When unsure which scope, rebuild **both** (`npm run deploy`) — the site here needs `front` **and** `back`, and forgetting `back` is why admin-side changes silently don't apply.
+When unsure which scope (and no dev server is running — see Step 0), rebuild **both** (`npm run deploy`) — the site here needs `front` **and** `back`, and forgetting `back` is why admin-side changes silently don't apply.
 
 ## Commands
 
 npm (from project root — the actual compile):
 
-- `npm start` — interactive: pick a **scope** and **dev vs prod**. Dev launches the Vite **HMR dev server** (port 5173, exposed via DDEV); prod builds that scope to `dist/`.
+- `npm start` — interactive: pick a **scope** and **dev vs prod**. Dev launches the Vite **HMR dev server** (port 5173, exposed via DDEV); prod builds that scope to `dist/`. Non-interactive: `npm start -- <prod|dev> <scope>`.
+- `npm run build:front` / `npm run build:back` — non-interactive prod build of **one** scope. Prefer these over `deploy` when you know the scope.
 - `npm run deploy` — `npm start -all`: prod-build **every** scope. This is the "make it real / commit-ready" build.
 - `npm run preview` — `vite preview`.
 
+All prod builds are refused while a dev server is answering (see Step 0); `--force` overrides.
+
 drush (manifest + lifecycle):
 
+- `drush neo:build:status` / `neo-status` — dev mode, dev scope, and a live probe of the dev server (`--format=json` for scripting). **Run this first.**
 - `drush neo:build [scope]` / `neo` — regenerate `neo.json` for a scope (default `front`). Lower-level; `npm start` calls this for you.
 - `drush neo:build:cc` / `neo-cc` — clear just the twig/render/page caches (lighter than full `drush cr`).
 - `drush neo:build:scopes` / `neo-scopes` — list scopes (`--format=json` for scripting).
@@ -77,7 +92,8 @@ After editing these, `drush cr` and rebuild the scope.
 
 ## Common pitfalls
 
-- **Class is real but does nothing** — Tailwind scope isolation. The class wasn't compiled into the scope actually rendering the page (or you added it to `front` but need it in `back`, or vice versa). Rebuild the owning scope; when in doubt `npm run deploy`.
+- **Class is real but does nothing** — Tailwind scope isolation. The class wasn't compiled into the scope actually rendering the page (or you added it to `front` but need it in `back`, or vice versa). Rebuild the owning scope; when in doubt (and no dev server is up) `npm run deploy`.
+- **Build refused: "a Neo dev server is already running"** — not an error. The watcher already serves your change via HMR; at most `drush cr` if something cached. Only a cross-scope change needs a build, and that means stopping the dev session first — ask the user rather than passing `--force`.
 - **Admin-side change didn't apply** — admin uses the **back** theme; you probably only rebuilt `front`.
 - **Edited `dist/` in dev and saw no effect** — the dev server supersedes `dist/`; stale `dist/` in dev is normal. Change `src/`, not `dist/`.
 - **`.libraries.yml` `neo:`/entrypoint change ignored** — library definitions are cached; `drush cr` (or `neo-cc`) before rebuilding.

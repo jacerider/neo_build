@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\neo_build\Commands;
 
+use Consolidation\OutputFormatters\StructuredData\PropertyList;
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Component\Utility\NestedArray;
@@ -314,6 +315,76 @@ class DrushCommands extends CoreCommands {
    */
   public function neoBuildDevEnabled() {
     return NeoBuild::getNeoState('dev', FALSE);
+  }
+
+  /**
+   * Get Neo build status.
+   *
+   * Reports whether dev (HMR) mode is on, which scope the dev server is
+   * serving, and whether a dev server is actually answering — everything a
+   * developer or agent needs before deciding whether to run a build at all.
+   *
+   * @command neo:build:status
+   * @usage drush neo:build:status
+   *   Show Neo build/dev status.
+   * @usage drush neo:build:status --format=json
+   *   Machine-readable status.
+   * @aliases neo-status
+   *
+   * @field-labels
+   *   status: Status
+   *   dev: Dev mode
+   *   scope: Dev scope
+   *   dev_server_url: Dev server URL
+   *   dev_server_up: Dev server answering
+   *   lock: Lock file
+   */
+  public function neoBuildStatus($options = ['format' => 'table']): PropertyList {
+    $dev = (bool) NeoBuild::getNeoState('dev', FALSE);
+    $scope = NeoBuild::getNeoState('scope', 'front');
+    $lock = file_exists($this->getRoot() . '/_neo.lock');
+    $up = $this->devServerAnswering();
+    if ($dev && $up) {
+      $status = 'DEV — assets served via HMR from the dev server (scope: ' . $scope . '). Builds are not needed for ' . $scope . ' changes; other scopes still serve stale dist/.';
+    }
+    elseif ($dev) {
+      $status = 'STALE — dev mode is on but no dev server is answering. Run "npm run deploy" (or "drush neo-dev-disable" + "drush cr") to restore dist/ assets.';
+    }
+    elseif ($up) {
+      $status = 'ORPHANED — a dev server is answering but Drupal is not using it. Restart "npm start" or stop the server.';
+    }
+    else {
+      $status = 'PROD — assets served from compiled dist/.';
+    }
+    return new PropertyList([
+      'status' => $status,
+      'dev' => $dev,
+      'scope' => $scope,
+      'dev_server_url' => NeoBuild::getViteDevServerUrl(),
+      'dev_server_up' => $up,
+      'lock' => $lock,
+    ]);
+  }
+
+  /**
+   * Probe the vite dev server port.
+   *
+   * The dev server binds 0.0.0.0 in this container, so a localhost TCP
+   * connect is enough to know whether anything is answering.
+   *
+   * @return bool
+   *   TRUE if a dev server is answering.
+   */
+  protected function devServerAnswering(): bool {
+    $port = (int) NeoBuild::getNeoSetting('port', 5173);
+    $errno = 0;
+    $errstr = '';
+    $socket = @fsockopen('localhost', $port, $errno, $errstr, 1);
+    if ($socket !== FALSE) {
+      fclose($socket);
+      return TRUE;
+    }
+    return FALSE;
   }
 
   /**

@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node ./[DOC-ROOT][MODULE-DIR]/tools/neo-cli.cjs",
     "deploy": "npm start -all",
+    "build:front": "npm start -- prod front",
+    "build:back": "npm start -- prod back",
     "preview": "vite preview"
   },
   "devDependencies": {

@@ -6,6 +6,8 @@
  */
 
 const { execSync } = require('child_process');
+const http = require('http');
+const path = require('path');
 const colors = require('picocolors');
 const prompts = require('@inquirer/prompts');
 
@@ -19,12 +21,19 @@ const CONFIG = {
   }
 };
 
+// Positional arguments ("npm start -- prod front") work on every npm version;
+// npm_config_* flags ("npm start --target=prod") are kept for compatibility.
+const argv = process.argv.slice(2).filter((arg) => arg !== '--');
+const argvArgs = argv.filter((arg) => !arg.startsWith('-'));
+const argvFlags = argv.filter((arg) => arg.startsWith('-'));
+
 // CLI state
 const state = {
   scopes: null,
-  target: process.env.npm_config_target || null,
-  scope: process.env.npm_config_scope || null,
-  all: process.env.npm_config_all || false,
+  target: process.env.npm_config_target || argvArgs[0] || null,
+  scope: process.env.npm_config_scope || argvArgs[1] || null,
+  all: process.env.npm_config_all || argvArgs[0] === 'all' || false,
+  force: process.env.npm_config_force || argvFlags.includes('--force') || false,
 };
 
 /**
@@ -64,6 +73,77 @@ function clear() {
   } catch (error) {
     console.error('Error clearing screen:', error);
   }
+}
+
+/**
+ * Get the dev server port from neo.json, falling back to the default.
+ * @returns {number} The dev server port
+ */
+function getDevServerPort() {
+  try {
+    return require(path.resolve(process.cwd(), 'neo.json')).port || 5173;
+  } catch (error) {
+    return 5173;
+  }
+}
+
+/**
+ * Probe the Vite dev server. Any process answering on the port counts —
+ * the dev server binds 0.0.0.0 inside the container, so localhost reaches it.
+ * @returns {Promise<boolean>} True if a dev server is answering
+ */
+function devServerRunning() {
+  return new Promise((resolve) => {
+    const req = http.get({
+      host: 'localhost',
+      port: getDevServerPort(),
+      path: '/@vite/client',
+      timeout: 1000,
+    }, (res) => {
+      res.resume();
+      resolve(true);
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.on('error', () => resolve(false));
+  });
+}
+
+/**
+ * Refuse a prod build while a dev server is live (unless --force).
+ *
+ * A prod build here would silently disconnect the running dev session:
+ * it disables the Drupal-side dev state, rewrites neo.json (restarting the
+ * dev server against prod config) and deletes the dev lock file. Anyone —
+ * or any agent — asking for a prod build while the watcher is up almost
+ * certainly doesn't need one.
+ */
+async function guardDevServer() {
+  if (state.force) {
+    return;
+  }
+  if (!(await devServerRunning())) {
+    return;
+  }
+  const port = getDevServerPort();
+  console.error(`
+${colors.red('✘')} ${colors.cyan('[neo]')} ${colors.red(`Refusing to build: a Neo dev server is already running on port ${port}.`)}
+
+  Asset changes are already live via HMR — no build is needed:
+    - src TS/CSS, *.twig, *.component.yml and *.php edits are picked up automatically.
+    - *.info.yml and *.libraries.yml edits regenerate neo.json and clear caches automatically.
+
+  If a change is not showing, run ${colors.yellow('drush neo-status')} — the dev server serves
+  ONE scope at a time and your change may belong to the other scope.
+
+  A prod build now would disconnect the running dev session (its owner loses
+  HMR without warning). If that is really what you want:
+
+    ${colors.yellow('npm run deploy --force')}
+`);
+  process.exit(1);
 }
 
 /**
@@ -115,6 +195,7 @@ function runDrushNeo(scope) {
  * @param {string} group - The group
  */
 async function runViteProd() {
+  await guardDevServer();
   clear();
   console.log(`\n${colors.cyan('[neo]')} ${colors.yellow('Building for production...')}`);
   for (const [scope, details] of Object.entries(state.scopes)) {
@@ -219,6 +300,20 @@ async function cli(target, scope) {
 
     // Interactive prompts
     state.target = target || await promptForTarget();
+
+    // Guard top-level invocations against a live dev server. Re-entrant calls
+    // (runViteProd() looping scopes, the prod rebuild after the dev server
+    // exits) pass an explicit target and are guarded by runViteProd() itself.
+    if (!target) {
+      if (state.target === 'dev' && await devServerRunning()) {
+        console.log(`${colors.cyan('[neo]')} A Neo dev server is already running on port ${getDevServerPort()}. Leaving it alone.`);
+        process.exit(0);
+      }
+      if (state.target === 'prod') {
+        await guardDevServer();
+      }
+    }
+
     state.scope = scope || await promptForScope();
 
     // Validate scope.

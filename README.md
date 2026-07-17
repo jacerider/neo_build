@@ -105,6 +105,29 @@ To compile js and css for all scopes (only 'contrib' group), run:
 npm run deploy
 ```
 
+To compile a single scope non-interactively, run:
+
+```shell
+npm run build:front
+npm run build:back
+```
+
+Production builds refuse to run while a dev server is answering on the vite
+port — the running dev session already serves changes via HMR, and a prod
+build would silently disconnect it. Pass `--force` to override.
+
+BUILD STATUS
+------------
+
+To see whether dev (HMR) mode is on, which scope the dev server is serving
+and whether a dev server is actually answering, run:
+
+```shell
+drush neo-status
+```
+
+Use `--format=json` for machine-readable output.
+
 BUILD SCOPES
 -------------
 

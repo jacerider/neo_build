@@ -158,6 +158,7 @@ const neoVite = (config:any): Plugin => {
       }
       if (micromatch.isMatch(ctx.file, [
         '**/*.info.yml',
+        '**/*.libraries.yml',
       ], {})) {
         reload(ctx, {cache: true, restart: true});
         return [];
