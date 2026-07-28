@@ -8,6 +8,19 @@ declare var displace:any;
 
 declare function once(id: string, selector: string, context?: HTMLElement): Array<HTMLElement>;
 
+/**
+ * The rest of Drupal's core/once API, merged onto the call signature above.
+ *
+ * `remove()` is the counterpart a behaviour's detach() needs: without clearing
+ * the stamp, a context that is detached and re-attached can never be processed
+ * a second time.
+ */
+declare namespace once {
+  function remove(id: string, selector: string, context?: HTMLElement): Array<HTMLElement>;
+  function filter(id: string, selector: string, context?: HTMLElement): Array<HTMLElement>;
+  function find(id?: string, context?: HTMLElement): Array<HTMLElement>;
+}
+
 declare function debounce(func: Function, wait?: number, immediate?: boolean): Function;
 
 interface JQueryAutocompleteInstance {
