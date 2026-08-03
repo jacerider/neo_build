@@ -49,6 +49,16 @@ When unsure which scope (and no dev server is running — see Step 0), rebuild *
 
 npm (from project root — the actual compile):
 
+⚠ **On a DDEV project every one of these is `ddev npm …`, not host `npm`.** The CLI shells out
+to drush to read the scopes, so from the host it dies on `[neo] Failed to fetch scopes` — which
+names neither node nor ddev and reads like a broken build config, not a missing container.
+
+⚠ **`drush neo:build` is NOT the build.** It regenerates `neo.json` and stops, and its last line
+is `Prepare Success` — so it looks like a completed compile, `drush cr` afterwards looks like the
+finishing step, and the page still serves the old `dist/`. The tell is the mtime on
+`web/themes/<theme>/dist/front.css`: unchanged means nothing compiled. Only the npm commands
+below write `dist/`.
+
 - `npm start` — interactive: pick a **scope** and **dev vs prod**. Dev launches the Vite **HMR dev server** (port 5173, exposed via DDEV); prod builds that scope to `dist/`. Non-interactive: `npm start -- <prod|dev> <scope>`.
 - `npm run build:front` / `npm run build:back` — non-interactive prod build of **one** scope. Prefer these over `deploy` when you know the scope.
 - `npm run deploy` — `npm start -all`: prod-build **every** scope. This is the "make it real / commit-ready" build.
