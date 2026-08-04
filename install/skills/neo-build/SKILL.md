@@ -18,7 +18,7 @@ Full human reference: [web/modules/contrib/neo_build/README.md](web/modules/cont
 - **Scopes** — the build is partitioned into scopes: **`front`** (frontend theme) and **`back`** (backend/admin theme). **Admin pages render with the `back` theme.** A theme declares its scopes in info.yml (`neo: { scope: [front, back] }`); no scope = all scopes. List them with `drush neo-scopes`.
 - **Tailwind is scope-isolated** — `@tailwind base` only emits the classes aggregated **for that scope**. A utility used only in a `front` library will **not exist** in the `back` build's CSS, and vice versa. This is the #1 cause of "my class does nothing": the class is real but the owning scope wasn't rebuilt (or you used it in the other scope).
 - **Two-step build** — `drush neo:build <scope>` (alias `neo`) regenerates `neo.json` (the manifest of entrypoints for that scope); Vite then compiles them to `dist/`. The npm CLI orchestrates both: it calls `drush neo <scope>` then runs Vite.
-- **Generated / ignored** — `neo.json` and `neo.tsconfig.json` are generated (git-ignored). `_neo.lock` is the dev-mode lock file.
+- **Generated** — `neo.json` is generated and git-ignored. **`neo.tsconfig.json` is generated but TRACKED**, so every build shows up as a diff. It is only the `include` list, and a single-scope build (`npm run build:front`) rewrites it for *that scope alone*, silently dropping the other scope's entries — run `npm run deploy` before committing it, or the back scope loses its files. `_neo.lock` is the dev-mode lock file.
 
 ## Step 0 — is the dev server running?
 
@@ -52,6 +52,14 @@ npm (from project root — the actual compile):
 ⚠ **On a DDEV project every one of these is `ddev npm …`, not host `npm`.** The CLI shells out
 to drush to read the scopes, so from the host it dies on `[neo] Failed to fetch scopes` — which
 names neither node nor ddev and reads like a broken build config, not a missing container.
+
+⚠ **Type-check with `ddev exec npx tsc --noEmit` — never `-p neo.tsconfig.json`.** That file is
+the generated *include list* and carries no `compilerOptions`; `tsconfig.json` holds them
+(`target: ES2022`, `lib: ES2022`/`DOM`) and `extends` it. Pointing tsc at the generated file falls
+back to ES5 defaults and invents ~170 phantom errors — "Property 'includes' does not exist on type
+'string'", "Cannot find name 'Set'", "'Promise' only refers to a type" — which read as a rotten
+codebase rather than a wrong `-p`. Bare `npx tsc --noEmit` resolves `tsconfig.json` and reports 0,
+so any error it does report is real.
 
 ⚠ **`drush neo:build` is NOT the build.** It regenerates `neo.json` and stops, and its last line
 is `Prepare Success` — so it looks like a completed compile, `drush cr` afterwards looks like the
