@@ -120,6 +120,12 @@ final class NeoExtensionList {
    * fires before buildByExtension() flattens them. We normalize here so
    * NeoLibrary receives the same flat format it gets from buildByExtension().
    *
+   * buildByExtension() can also hand back a library this module has already
+   * rewritten — anything calling all() outside the build command reads the
+   * post-alter definitions. Under dev that rewrite moves the stylesheet into
+   * the js array as a Vite module (flagged neoCss), which would otherwise read
+   * as a second JS entry point and trip NeoLibrary's one-JS guard.
+   *
    * @param string $extensionPath
    *   The path to the owning extension.
    * @param array $library
@@ -153,6 +159,13 @@ final class NeoExtensionList {
         $flat[] = $options;
       }
       $library['js'] = $flat;
+    }
+    // Drop stylesheets the dev rewrite parked in the js array. They are a
+    // delivery artifact, not an entry point.
+    if (!empty($library['js'])) {
+      $library['js'] = array_filter($library['js'], function ($options) {
+        return empty($options['attributes']['neoCss']);
+      });
     }
     return $library;
   }
