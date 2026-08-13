@@ -812,9 +812,15 @@ class NeoBuildCollection {
    */
   protected function addViteLibFromLibrary(NeoLibrary $library): self {
     if ($path = $library->getCssPath()) {
+      if (!file_exists($path)) {
+        $this->output->writeln(dt('<comment>⚠ [neo]</comment> Missing CSS file skipped: @path (@id)', [
+          '@path' => $path,
+          '@id' => $library->id(),
+        ]));
+      }
       // Libraries set for import do not need to be handled by Vite as they
       // will be imported into the main CSS file.
-      if (!$library->isImport()) {
+      elseif (!$library->isImport()) {
         // If data has string @import "tailwindcss" this is the primary css.
         if ($this->isTailwindBaseCss($path)) {
           $this->setPrimaryRoot($library->getExtension()->getPath());
@@ -824,6 +830,13 @@ class NeoBuildCollection {
       }
     }
     if ($path = $library->getJsPath()) {
+      if (!file_exists($path)) {
+        $this->output->writeln(dt('<comment>⚠ [neo]</comment> Missing JS file skipped: @path (@id)', [
+          '@path' => $path,
+          '@id' => $library->id(),
+        ]));
+        return $this;
+      }
       $this->addViteLib($library->id() . ':Js', $path);
       if (substr($path, -3) === '.ts') {
         $this->addTsInclude($path);
