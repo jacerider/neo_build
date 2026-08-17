@@ -500,6 +500,34 @@ class DrushCommands extends CoreCommands {
       }
     }
 
+    // Scaffold the ddev Nightwatch runner. Unlike the files above this is
+    // written only when absent: it is a shell command a site may reasonably
+    // tailor, and clobbering someone's edits on every install would be rude.
+    // It also has to be executable, which saveData() does not handle.
+    $ddevCommand = $root . '/.ddev/commands/web/nightwatch';
+    $ddevTemplate = $this->appRoot . '/' . $moduleDir . '/install/neo/nightwatch.install';
+    if (file_exists($ddevTemplate) && is_dir($root . '/.ddev')) {
+      if (file_exists($ddevCommand)) {
+        $this->output()->writeln((string) dt('<info>[neo]</info> Kept existing @file.', [
+          '@file' => '.ddev/commands/web/nightwatch',
+        ]));
+      }
+      else {
+        $data = file_get_contents($ddevTemplate);
+        foreach ($tokens as $token => $value) {
+          $data = str_replace($token, $value, $data);
+        }
+        $ddevDir = dirname($ddevCommand);
+        $this->fileSystem->prepareDirectory($ddevDir, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
+        $this->fileSystem->saveData($data, $ddevCommand, FileExists::Replace);
+        // DDEV only offers a command whose file is executable.
+        $this->fileSystem->chmod($ddevCommand, 0755);
+        $this->output()->writeln((string) dt('<info>[neo]</info> Generated @file.', [
+          '@file' => '.ddev/commands/web/nightwatch',
+        ]));
+      }
+    }
+
     // Copy Claude Code skills into the project's .claude/skills directory.
     // Skills are aggregated from every enabled module's install/skills
     // directory (keyed by relative path to dedupe), so each module can ship

@@ -6,6 +6,7 @@
  */
 
 const { execSync } = require('child_process');
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const colors = require('picocolors');
@@ -15,9 +16,15 @@ const prompts = require('@inquirer/prompts');
 const CONFIG = {
   commands: {
     getDrushScopes: 'drush neo-scopes --format=json',
+    getDrushStatus: 'drush neo-status --format=json',
     setDrushDev: 'drush neo-dev-',
     drushNeo: 'drush neo',
     vite: 'vite'
+  },
+  // Drupal core owns the Nightwatch runner; we only drive it.
+  nightwatch: {
+    coreDir: 'web/core',
+    runner: 'yarn test:nightwatch',
   }
 };
 
@@ -34,6 +41,10 @@ const state = {
   scope: process.env.npm_config_scope || argvArgs[1] || null,
   all: process.env.npm_config_all || argvArgs[0] === 'all' || false,
   force: process.env.npm_config_force || argvFlags.includes('--force') || false,
+  // `neo test [tag]` runs Nightwatch rather than a build.
+  test: argvArgs[0] === 'test',
+  tag: argvArgs[1] || null,
+  noBuild: argvFlags.includes('--no-build'),
 };
 
 /**
@@ -266,6 +277,217 @@ async function promptForScope() {
 }
 
 /**
+ * Read the Neo build status from Drupal.
+ * @returns {Object} The parsed status, or an empty object when unavailable
+ */
+function getNeoStatus() {
+  const json = safeExec(CONFIG.commands.getDrushStatus);
+  if (!json) {
+    return {};
+  }
+  try {
+    return JSON.parse(json);
+  } catch (error) {
+    return {};
+  }
+}
+
+/**
+ * Refuse to run browser tests against dev-server assets.
+ *
+ * Nightwatch drives a real browser against the real site, so it tests whatever
+ * the page actually loads. In dev mode that is the Vite dev server rather than
+ * the compiled dist/ output — and the dev server serves ONE scope at a time, so
+ * the other scope's assets are missing entirely. Tests would be exercising
+ * something other than what ships, in either direction: a green run that proves
+ * nothing, or a red run caused by the harness.
+ */
+function guardTestAssets() {
+  if (state.force) {
+    return;
+  }
+  const status = getNeoStatus();
+
+  // A live dev server belongs to whoever started it. Building would disconnect
+  // their HMR session without warning, so this is refused outright rather than
+  // repaired.
+  if (status.dev_server_up) {
+    console.error(`
+${colors.red('✘')} ${colors.cyan('[neo]')} ${colors.red('Refusing to test: a Neo dev server is running.')}
+
+  ${colors.yellow(status.status || 'Dev mode is active.')}
+
+  Nightwatch drives a real browser, so it loads whatever the page serves — in
+  dev mode that is the dev server's HMR output rather than the compiled
+  ${colors.yellow('dist/')} files, and only for the one scope it is serving. The run would not
+  be testing what ships.
+
+  Building first would disconnect that dev session, so stop it yourself, then:
+
+    ${colors.yellow('npm run deploy')}
+
+  To test against the dev server deliberately:
+
+    ${colors.yellow('npm start test --force')}
+`);
+    process.exit(1);
+  }
+
+  // Dev mode with no server just means stale dist/ assets. The build this
+  // command runs by default restores them, so only refuse when it is skipped.
+  if ((status.dev || status.lock) && state.noBuild) {
+    console.error(`
+${colors.red('✘')} ${colors.cyan('[neo]')} ${colors.red('Refusing to test: Neo is in DEV mode and --no-build was given.')}
+
+  ${colors.yellow(status.status || 'Dev mode is active.')}
+
+  The compiled assets the browser would load are stale, and ${colors.yellow('--no-build')} means
+  nothing is going to rebuild them. Drop the flag to let this build first:
+
+    ${colors.yellow('npm start test')}
+`);
+    process.exit(1);
+  }
+}
+
+/**
+ * Keep Nightwatch directories on CommonJS.
+ *
+ * Nightwatch files are written as CommonJS — that is what core's runner
+ * requires them as, and what every example in core and contrib uses. But a
+ * project root package.json with `"type": "module"` makes Node treat every .js
+ * outside core/ as an ES module, so `module.exports` throws
+ * "module is not defined in ES module scope".
+ *
+ * This is not a per-module problem to fix per module: Nightwatch loads all
+ * discovered Commands and Assertions globally, regardless of --tag, so ONE
+ * contrib module shipping CommonJS aborts the entire run. Renaming to .cjs is
+ * not an option either, because the discovery glob only matches *.js.
+ *
+ * A package.json declaring `"type": "commonjs"` scopes the subtree back. This
+ * writes that marker into any Nightwatch directory missing it — additive,
+ * idempotent, and it restores the behaviour those files were always written
+ * for. Composer strips it from contrib on update; the next run puts it back.
+ */
+function ensureNightwatchCommonJs() {
+  let rootType = null;
+  try {
+    rootType = require(path.resolve(process.cwd(), 'package.json')).type;
+  } catch (error) {
+    return;
+  }
+  if (rootType !== 'module') {
+    return;
+  }
+
+  let dirs = [];
+  try {
+    dirs = fs.globSync('web/{modules,themes,profiles}/**/tests/**/Nightwatch', {
+      cwd: process.cwd(),
+    });
+  } catch (error) {
+    // fs.globSync needs Node >= 22; skip the repair rather than fail the run.
+    return;
+  }
+
+  const written = [];
+  dirs.forEach((dir) => {
+    const marker = path.resolve(process.cwd(), dir, 'package.json');
+    if (fs.existsSync(marker)) {
+      return;
+    }
+    fs.writeFileSync(marker, `{
+  "//": "Written by \`neo test\`. Scopes this directory back to CommonJS, which Nightwatch files are written as. Without it a project root \\"type\\": \\"module\\" makes Node load them as ES modules and module.exports throws.",
+  "type": "commonjs"
+}
+`);
+    written.push(dir);
+  });
+
+  if (written.length) {
+    console.log(`${colors.cyan('[neo]')} Restored CommonJS scope for ${written.length} Nightwatch director${written.length === 1 ? 'y' : 'ies'}:`);
+    written.forEach((dir) => console.log(`  ${colors.yellow(dir)}`));
+  }
+}
+
+/**
+ * Ensure Drupal core's Nightwatch runner is installed and configured.
+ *
+ * Core drives Nightwatch through dotenv-safe, which requires the .env FILE to
+ * exist even when every variable is already supplied by the environment (as
+ * DDEV's selenium add-on does). dotenv never overrides an existing environment
+ * variable, so the generated file is only a fallback.
+ */
+function ensureNightwatchPrereqs() {
+  const coreDir = path.resolve(process.cwd(), CONFIG.nightwatch.coreDir);
+  if (!fs.existsSync(coreDir)) {
+    console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Could not find ${CONFIG.nightwatch.coreDir} from ${process.cwd()}.`);
+    process.exit(1);
+  }
+
+  const envPath = path.join(coreDir, '.env');
+  if (!fs.existsSync(envPath)) {
+    fs.writeFileSync(envPath, `# Generated by \`neo test\`.
+#
+# Core runs Nightwatch through dotenv-safe, which requires this file to exist.
+# DDEV's selenium add-on already exports the webdriver variables via
+# web_environment, and dotenv does not override an existing environment
+# variable — so everything here is only a fallback for non-DDEV setups.
+DRUPAL_TEST_BASE_URL=http://web
+DRUPAL_TEST_DB_URL=mysql://db:db@db/db
+DRUPAL_TEST_WEBDRIVER_HOSTNAME=selenium-chrome
+DRUPAL_TEST_WEBDRIVER_PORT=4444
+DRUPAL_TEST_WEBDRIVER_PATH_PREFIX=/wd/hub
+# Selenium runs as its own container, so nothing should autostart chromedriver.
+DRUPAL_TEST_CHROMEDRIVER_AUTOSTART=false
+DRUPAL_NIGHTWATCH_OUTPUT=reports/nightwatch
+DRUPAL_NIGHTWATCH_IGNORE_DIRECTORIES=node_modules,vendor,.*,sites/*/files,sites/*/private,sites/simpletest
+`);
+    console.log(`${colors.cyan('[neo]')} Wrote ${colors.yellow('web/core/.env')} for the Nightwatch runner.`);
+  }
+
+  ensureNightwatchCommonJs();
+
+  if (!fs.existsSync(path.join(coreDir, 'node_modules', '.bin', 'nightwatch'))) {
+    console.log(`${colors.cyan('[neo]')} ${colors.yellow('Installing Drupal core JS dependencies (one time, this takes a few minutes)...')}`);
+    // Core pins yarn via its packageManager field; corepack activates it.
+    if (!execAndShow(`corepack enable && cd ${coreDir} && yarn install`)) {
+      console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Failed to install core's JS dependencies.`);
+      process.exit(1);
+    }
+  }
+}
+
+/**
+ * Run Nightwatch.
+ *
+ * Core's runner discovers tests anywhere matching
+ * **\/tests\/**\/Nightwatch/(Tests|Commands|Assertions|Pages), so modules need no
+ * registration — a tag is how you scope a run to one of them.
+ */
+function runNightwatch() {
+  guardTestAssets();
+
+  if (!state.noBuild) {
+    console.log(`${colors.cyan('[neo]')} ${colors.yellow('Building assets so the browser tests what ships...')}`);
+    if (!execAndShow('npm run deploy')) {
+      console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed; not running tests against stale assets.`);
+      process.exit(1);
+    }
+  }
+
+  ensureNightwatchPrereqs();
+
+  const coreDir = path.resolve(process.cwd(), CONFIG.nightwatch.coreDir);
+  // With no tag, run everything except core's own suite.
+  const filter = state.tag ? `--tag ${state.tag}` : '--skiptags core';
+  console.log(`\n${colors.cyan('[neo]')} ${colors.yellow(`Running Nightwatch (${filter})...`)}\n`);
+  const passed = execAndShow(`cd ${coreDir} && ${CONFIG.nightwatch.runner} ${filter}`);
+  console.log(`\n${colors.cyan('[neo]')} Reports: ${colors.yellow('web/core/reports/nightwatch')}`);
+  process.exit(passed ? 0 : 1);
+}
+
+/**
  * Initialize CLI setup
  */
 function initializeCli() {
@@ -281,6 +503,11 @@ function initializeCli() {
     }
     count++;
   });
+}
+
+// `neo test` drives Nightwatch instead of a build, and needs no scopes.
+if (state.test) {
+  runNightwatch();
 }
 
 initializeCli();

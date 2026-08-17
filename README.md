@@ -7,6 +7,9 @@ CONTENTS OF THIS FILE
  * Usage
  * Build for DEV
  * Build for PROD
+ * Build Status
+ * Browser Tests
+ * Shared Test Helpers
  * Build Groups
  * Configuration
 
@@ -127,6 +130,80 @@ drush neo-status
 ```
 
 Use `--format=json` for machine-readable output.
+
+BROWSER TESTS
+-------------
+
+Neo drives Drupal core's Nightwatch runner. Tests live in any module or theme
+under `tests/**/Nightwatch/{Tests,Commands,Assertions,Pages}` and are
+discovered automatically — nothing needs registering. Tag a suite with the
+module's machine name to be able to run it on its own.
+
+```shell
+npm start test              # every suite except core's
+npm start test neo_modal    # one module, matched on @tags
+```
+
+On DDEV the same thing is available as a ddev command:
+
+```shell
+ddev nightwatch neo_modal
+```
+
+`drush neo-install` scaffolds `.ddev/commands/web/nightwatch` when it is
+missing. An existing copy is left alone, so local edits survive.
+
+Assets are built first. Nightwatch drives a real browser, so without that step
+it would test whatever stale `dist/` happens to contain and report a pass for
+code that was never compiled. Pass `--no-build` when the assets are known to be
+current.
+
+Tests are refused outright while a dev server is answering: in dev mode the
+page loads HMR output for a single scope instead of the compiled assets that
+ship, so the run would not be testing what deploys. Stop the dev session first,
+or pass `--force` to test against the dev server deliberately.
+
+The first run installs Drupal core's own JS dependencies (yarn, activated
+through corepack) and writes `web/core/.env`, which core's runner requires to
+exist even when the environment already supplies every variable. Both are
+one-time.
+
+A webdriver is required. On DDEV:
+
+```shell
+ddev add-on get ddev/ddev-selenium-standalone-chrome
+```
+
+SHARED TEST HELPERS
+-------------------
+
+This module ships Nightwatch commands and assertions that any Neo package can
+use. Core's discovery scans the whole codebase, so they are available in every
+suite without an import.
+
+ * `browser.drupalInstallNeo({modules, theme, adminTheme})` — install a
+   throwaway test site carrying Neo's themes and the requested modules. It
+   walks the theme's base-theme chain and installs both the modules those
+   themes depend on and the modules providing their shipped config, none of
+   which a Neo site theme declares directly.
+ * `browser.neoWaitForAnimations(selector)` — wait for `neo-animate--*` classes
+   to clear. An element is visible long before it has finished opening, and Neo
+   hangs real work off the animation-completion callback, so asserting straight
+   after `waitForElementVisible()` races it.
+ * `browser.neoPressKey(key)` — send a key. Nightwatch's own `.keys()` is
+   deprecated and silently does nothing under the W3C protocol.
+ * `browser.neoWaitForAjax()` — wait for Drupal AJAX to settle.
+ * `browser.assert.neoAssetsBuilt()` — assert the page is serving compiled
+   assets rather than the dev server, for runs started outside `npm start test`.
+
+A project root `package.json` with `"type": "module"` makes Node load these
+files as ES modules, breaking `module.exports`. Because Nightwatch loads every
+discovered command and assertion regardless of the tag filter, a single module
+shipping CommonJS aborts the entire run. Renaming to `.cjs` is not an option —
+the discovery glob only matches `*.js` — so `npm start test` writes a
+`{"type": "commonjs"}` marker into any Nightwatch directory lacking one. It is
+additive and idempotent, and re-applies itself after Composer strips it from a
+contrib module.
 
 BUILD SCOPES
 -------------

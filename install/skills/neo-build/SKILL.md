@@ -1,6 +1,6 @@
 ---
 name: neo-build
-description: Understand and drive the Neo asset build — the Vite + Tailwind + TypeScript pipeline that compiles theme/module assets per scope (front/back). Use when editing *.ts / src CSS / *.libraries.yml `neo:` entries or info.yml `neo:`/`theme:` keys, when a class or asset change "isn't showing up", when deciding whether to run `drush neo:build` / `npm start` / `npm run deploy` / `drush cr`, or when working with the Vite dev server, build scopes, or `.claude/skills` installation. NOT for authoring components (use neo-component) or module PHP (use neo-alchemist-dev).
+description: Understand and drive the Neo asset build — the Vite + Tailwind + TypeScript pipeline that compiles theme/module assets per scope (front/back) — and its Nightwatch browser-test runner. Use when editing *.ts / src CSS / *.libraries.yml `neo:` entries or info.yml `neo:`/`theme:` keys, when a class or asset change "isn't showing up", when deciding whether to run `drush neo:build` / `npm start` / `npm run deploy` / `drush cr`, when working with the Vite dev server, build scopes, or `.claude/skills` installation, or when running or writing browser tests (`npm start test`, `ddev nightwatch`, `tests/**/Nightwatch/`). NOT for authoring components (use neo-component) or module PHP (use neo-alchemist-dev).
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
@@ -42,6 +42,7 @@ Prod builds **refuse to run** while a dev server is answering (override: `--forc
 | `src/*.ts` or `src/css/*.css` in a `neo: true` library | Dev server → HMR. For committed output: `npm run deploy` (all scopes) or `npm start` (one). |
 | `*.libraries.yml` or info.yml `neo:`/`theme:` keys | Dev server running → watcher handles it (cache clear + `neo.json` regen). Otherwise `drush cr` first (library defs are cached), then rebuild the affected scope. |
 | Added/edited a module's `install/skills/*` | `drush neo:build:install` to re-aggregate into `.claude/skills`. |
+| A `tests/**/Nightwatch/*` file | `npm start test <tag>` (or `ddev nightwatch <tag>`). The test file itself needs no build, but the code it exercises does — so let it build unless you just built. |
 
 When unsure which scope (and no dev server is running — see Step 0), rebuild **both** (`npm run deploy`) — the site here needs `front` **and** `back`, and forgetting `back` is why admin-side changes silently don't apply.
 
@@ -71,6 +72,7 @@ below write `dist/`.
 - `npm run build:front` / `npm run build:back` — non-interactive prod build of **one** scope. Prefer these over `deploy` when you know the scope.
 - `npm run deploy` — `npm start -all`: prod-build **every** scope. This is the "make it real / commit-ready" build.
 - `npm run preview` — `vite preview`.
+- `npm start test [tag]` — run Nightwatch browser tests (see "Browser tests"). On DDEV also `ddev nightwatch [tag]`.
 
 All prod builds are refused while a dev server is answering (see Step 0); `--force` overrides.
 
@@ -91,6 +93,46 @@ drush (manifest + lifecycle):
 `npm start` in **dev** mode runs Vite with HMR: edits to `src` TS/CSS (and watched Twig/yml) reload instantly. While the dev server is reachable on `:5173`, the module serves **live source** and **`dist/` is intentionally stale — don't rebuild it or trust its contents in dev.** The switch is cache-gated: after starting/stopping the server, `drush cr` so the library definitions re-resolve to server-vs-dist.
 
 For committed/production assets, run `npm run deploy` (builds all scopes to `dist/`). `dist/*.css` is the source of truth in prod; in dev it is not.
+
+## Browser tests
+
+Neo drives **Drupal core's Nightwatch runner**. Tests live at
+`<module>/tests/**/Nightwatch/{Tests,Commands,Assertions,Pages}` and are discovered across the
+whole codebase automatically — nothing is registered. Tag a suite with the module's machine name
+(`'@tags': ['neo_modal']`) so it can be run on its own.
+
+- `npm start test` — every suite except core's. `npm start test neo_modal` — one module, by tag.
+- `ddev nightwatch neo_modal` — the same thing on DDEV. `drush neo-install` scaffolds that command
+  when it is missing and leaves an existing copy alone.
+- `--no-build` skips the asset build; `--force` overrides the dev-mode refusal.
+
+⚠ **Assets are built first, and that is not optional politeness.** Nightwatch drives a real browser,
+so it tests whatever the page serves. Skipping the build tests the *old* bundle and reports a
+confident pass for code that was never compiled. The run is refused entirely in dev mode, because
+the page would load HMR output for one scope instead of the compiled assets that ship.
+
+First run installs core's JS deps (yarn via corepack) and writes `web/core/.env` — core's runner
+uses dotenv-safe, which requires the *file* to exist even when the environment already supplies
+every variable. Needs a webdriver: `ddev add-on get ddev/ddev-selenium-standalone-chrome`.
+
+**Helpers this module ships** (available in every suite, no import):
+
+| Helper | Why it exists |
+|---|---|
+| `drupalInstallNeo({modules, theme})` | Installs a throwaway site with Neo's themes. Walks the theme's base-theme chain and installs the modules those themes *and their shipped config* need — a Neo site theme declares none of it directly. |
+| `neoWaitForAnimations(selector)` | Waits for `neo-animate--*` to clear. **An element is visible long before it has finished opening**, and Neo hangs work off the animation callback. |
+| `neoPressKey(key)` | Nightwatch's `.keys()` is deprecated and does nothing under W3C. |
+| `neoWaitForAjax()` | Waits for Drupal AJAX to settle. |
+| `assert.neoAssetsBuilt()` | Asserts the page is serving compiled assets, for runs started outside `npm start test`. |
+
+### Writing Nightwatch tests
+
+- They are **plain CommonJS JS on your installed Node — not TypeScript**. Files outside `core/` run
+  untranspiled, so no `import`, no types, unless a Babel config is added at the project root.
+- Prefer **install-free** tests that drive the running site: far faster, and they exercise the
+  configuration people actually use. Reach for `drupalInstallNeo()` only when a test genuinely needs
+  a known-clean site.
+- After opening anything animated, `neoWaitForAnimations()` before asserting.
 
 ## Registering Tailwind components / theme config
 
@@ -116,4 +158,9 @@ After editing these, `drush cr` and rebuild the scope.
 - **Edited `dist/` in dev and saw no effect** — the dev server supersedes `dist/`; stale `dist/` in dev is normal. Change `src/`, not `dist/`.
 - **`.libraries.yml` `neo:`/entrypoint change ignored** — library definitions are cached; `drush cr` (or `neo-cc`) before rebuilding.
 - **New module skill not appearing** — skills only land in `.claude/skills/` when `drush neo:build:install` runs; the source lives in `<module>/install/skills/<name>/SKILL.md`, never edited directly in `.claude/skills` (that's the generated copy).
+- **Tests: `module is not defined in ES module scope`** — a project root `"type": "module"` makes Node load Nightwatch files as ESM. Because every discovered command/assertion loads regardless of the tag filter, **one** contrib module shipping CommonJS aborts the whole run. `.cjs` won't help (the glob only matches `*.js`); `npm start test` writes a `{"type": "commonjs"}` marker into any Nightwatch dir missing one, and re-applies it after Composer strips it.
+- **Tests: a keypress does nothing** — `browser.keys()` is deprecated and silently sends nothing under W3C (which DDEV's selenium add-on enables). Use `neoPressKey()`. The Actions API via `.perform()` is the documented replacement but does not deliver here either.
+- **Tests: the element is right there but interacting does nothing** — it is visible before it has finished opening, and Neo binds behaviour in the animation-completion callback (a modal binds its keyboard handlers there). Insert `neoWaitForAnimations()`. This failure is maximally misleading: the thing is on screen and simply ignores you.
+- **Tests: green run that proves nothing** — if `drupalInstall`/`drupalInstallNeo` fails, the browser stays pointed at the **original** site, so assertions happily pass against the dev site. Confirm the install actually succeeded before trusting a pass. Likewise a run with stale `dist/` tests the previous build.
+- **Tests refused: "Neo is in DEV mode"** — not an error to work around. In dev the page serves HMR output for one scope, not what ships. `npm run deploy`, then re-run.
 - **Committed `neo.json` / dev lock** — `neo.json` is generated and git-ignored; `neo.tsconfig.json` is generated but **tracked** (run `npm run deploy` before committing it so it carries every scope); `_neo.lock` means dev mode is on. Use `neo-dev-cleanup` before a production build/commit.

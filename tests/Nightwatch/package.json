@@ -1,0 +1,4 @@
+{
+  "//": "Scopes this directory back to CommonJS. Drupal core's Nightwatch runner discovers and requires these files as CommonJS, but a project root package.json with \"type\": \"module\" makes Node treat every .js outside core/ as an ES module, so module.exports fails with 'module is not defined in ES module scope'. Nightwatch only globs *.js, so renaming to .cjs would make the files undiscoverable -- this marker is the fix.",
+  "type": "commonjs"
+}
