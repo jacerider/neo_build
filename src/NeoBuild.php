@@ -180,8 +180,9 @@ class NeoBuild {
     if ($jsPath = $neoLibrary->getJsPath()) {
       if ($distPath = $this->manifest->getDistPath($jsPath)) {
         $rewrites['js']['path'] = $distPath;
-        // Deliberately loaded as a classic script, unlike rewriteLibraryForDev()
-        // where the Vite dev server serves real ES modules.
+        // Deliberately loaded as a classic script, unlike
+        // rewriteLibraryForDev() where the Vite dev server serves real ES
+        // modules.
         //
         // These chunks were served as `type="module"` to keep their minified
         // top-level names from leaking to globals and colliding. But a module

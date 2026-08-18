@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Drupal\neo_build;
 
 /**
- * Enhanced CSS builder with layer support, theme variables, nested rules, and camelCase conversion.
+ * Enhanced CSS builder.
  *
- * Basic usage with layers, theme variables, nested rules, and camelCase properties:
+ * Supports layers, theme variables, nested rules and camelCase conversion.
+ *
+ * Basic usage with layers, theme variables, nested rules and camelCase
+ * properties:
  *
  * $css = new NeoCss();
  *
@@ -25,7 +28,8 @@ namespace Drupal\neo_build;
  *     'padding' => '0.5rem 1rem',
  *     'border' => 'none',
  *     'borderRadius' => '4px', // Will become 'border-radius'
- *     'backgroundColor' => 'var(--primary-color)', // Will become 'background-color'
+ *     // 'backgroundColor' will become 'background-color'.
+ *     'backgroundColor' => 'var(--primary-color)',
  *     '&:hover' => [
  *       'backgroundColor' => 'var(--secondary-color)',
  *       'transform' => 'scale(1.05)',
@@ -566,7 +570,7 @@ class NeoCss {
         // A should come after B (A depends on B)
         return 1;
       }
-      // If no dependency, rules with apply still come after rules without apply.
+      // With no dependency, rules with apply still come after those without.
       return 1;
     }
 
@@ -577,7 +581,7 @@ class NeoCss {
         // B should come after A (B depends on A)
         return -1;
       }
-      // If no dependency, rules with apply still come after rules without apply.
+      // With no dependency, rules with apply still come after those without.
       return -1;
     }
 
@@ -598,10 +602,11 @@ class NeoCss {
         return -1;
       }
 
-      // If no dependencies or circular dependencies, fall through to weight/selector sorting.
+      // No dependencies, or circular ones: fall through to weight/selector
+      // sorting.
     }
 
-    // If both have apply or neither have apply, use existing weight/selector logic.
+    // If both have apply, or neither do, use the weight/selector logic.
     if ($a['weight'] === $b['weight']) {
       // Sort by selector name.
       return $a['selector'] <=> $b['selector'];

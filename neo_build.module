@@ -37,10 +37,10 @@ function neo_build_module_implements_alter(&$implementations, $hook) {
     $group = $implementations['neo_build'];
     unset($implementations['neo_build']);
     $implementations['neo_build'] = $group;
-    // if (isset($implementations['canvas'])) {
-    //   unset($implementations['canvas']);
-    //   $implementations['canvas'] = $group;
-    // }
+    // If (isset($implementations['canvas'])) {
+    // unset($implementations['canvas']);
+    // $implementations['canvas'] = $group;
+    // }.
   }
 }
 
@@ -71,6 +71,9 @@ function neo_build_help(string $route_name, RouteMatchInterface $route_match) : 
   return '';
 }
 
+/**
+ * Implements hook_library_info_build().
+ */
 function neo_build_library_info_build() : array {
   $libraries = [];
   foreach (['front', 'back'] as $scope) {
