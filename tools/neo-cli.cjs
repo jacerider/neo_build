@@ -373,13 +373,16 @@ async function promptForScope() {
  */
 function getNeoStatus() {
   const json = safeExec(CONFIG.commands.getDrushStatus);
-  if (!json) {
-    return {};
+  // A failed command and a command that reported nothing are different answers:
+  // the first cannot be read at all, and reading it as clean waves a run through
+  // the guard that exists to stop it.
+  if (json === null) {
+    return { read: false, status: {} };
   }
   try {
-    return JSON.parse(json);
+    return { read: true, status: JSON.parse(json) };
   } catch (error) {
-    return {};
+    return { read: false, status: {} };
   }
 }
 
@@ -397,7 +400,24 @@ function guardTestAssets() {
   if (state.force) {
     return;
   }
-  const status = getNeoStatus();
+  const { read, status } = getNeoStatus();
+
+  // An unreadable status is not a clean one. Without this the guard passes
+  // whenever the command behind it fails, which is the opposite of a guard.
+  if (!read) {
+    console.error(`
+${colors.red('✘')} ${colors.cyan('[neo]')} ${colors.red('Refusing to test: the Neo status could not be read.')}
+
+  ${colors.yellow(CONFIG.commands.getDrushStatus)} failed, so this cannot tell whether Neo is
+  in DEV mode or whether a dev server is running. An unreadable status is not a
+  clean one, and the browser would test whatever ${colors.yellow('dist/')} happens to hold.
+
+  Fix the Drupal side, then re-run. To skip these guards deliberately:
+
+    ${colors.yellow('npm start test --force')}
+`);
+    process.exit(1);
+  }
 
   // A live dev server belongs to whoever started it. Building would disconnect
   // their HMR session without warning, so this is refused outright rather than
