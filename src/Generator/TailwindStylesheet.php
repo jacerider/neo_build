@@ -5,42 +5,72 @@ declare(strict_types=1);
 namespace Drupal\neo_build\Generator;
 
 /**
- * Enhanced CSS builder.
+ * Composes and renders the body of a scope's tailwind.neo.css.
  *
- * Supports layers, theme variables, nested rules and camelCase conversion.
+ * One artifact, one caller: TailwindCssGenerator, which sits beside this class
+ * and wraps the rendered body in the file header and the @plugin line.
  *
- * Basic usage with layers, theme variables, nested rules and camelCase
- * properties:
+ * ## Emit order
+ *
+ * Fixed, and pinned byte-for-byte by TailwindStylesheetCharacterisationTest:
+ *
+ * 1. `/* Sources *\/` — the `@source` lines.
+ * 2. The `@theme` block — every custom property, and the only place one goes.
+ * 3. Top-level rules, unsorted, in insertion order.
+ * 4. `@layer components` — the one layer, its rules in comparator order.
+ * 5. `/* Variants *\/` — the `@custom-variant` lines.
+ * 6. `/* Imports *\/` — the `@import` lines. Last. See below.
+ *
+ * Every `@utility` lands in the top-level bucket, and that is a requirement
+ * rather than an oversight: Tailwind 4 does not register an `@utility` that
+ * sits inside a layer. The bucket is also deliberately unsorted — Tailwind
+ * resolves `@utility` cross-references from its own registry, not by file
+ * order.
+ *
+ * ## Why `@import` comes last
+ *
+ * The CSS specification requires `@import` to precede every rule, so a reader
+ * who knows CSS will read the trailing block as a bug and move it. It is not a
+ * bug, and moving it breaks two of the seven sites that run this module.
+ *
+ * This artifact is never served to a browser. Vite and Lightning CSS inline
+ * each import at the position it appears, so the specification's rule buys
+ * nothing here and the position is free to mean something else. It means
+ * **theme override precedence**: an imported stylesheet is inlined *after* the
+ * generated `@theme` block, so a token a theme declares beats the same token
+ * declared by a module's build-event subscriber. Move the block to the top and
+ * that inverts, silently — no gate catches it, because twelve of the fourteen
+ * generated stylesheets have no colliding declaration at all. The two that do
+ * are `rhls/front` and `jost/front`, which each declare
+ * `--text-color-default` in both places, and `jost/front` also declares
+ * `@utility page-title` in both.
+ *
+ * Recorded in full, with the collision scan and the two rejected alternatives,
+ * in the architecture decision record "The Tailwind stylesheet emits @import
+ * last". It is named rather than linked on purpose: the docs directory is not
+ * distributed with this module, so a path here would open nothing on the site
+ * you are reading this on.
+ *
+ * ## Basic usage
  *
  * $css = new TailwindStylesheet();
  *
- * // Add theme variables.
+ * // Add theme variables. They land in the @theme block.
  * $css->addCssVariable('--bg-site', '100px')
- *     ->addCssVariable('--fg-size', '200px')
  *     ->addCssVariable('--primary-color', '#007bff');
  *
- * // Add rules with camelCase properties (will be converted to kebab-case).
+ * // Add rules. Property names in camelCase are converted to kebab-case, and
+ * // an array value is a nested selector.
  * $css->addRule('.btn', [
  *     'display' => 'inline-block',
- *     'padding' => '0.5rem 1rem',
- *     'border' => 'none',
- *     'borderRadius' => '4px', // Will become 'border-radius'
- *     // 'backgroundColor' will become 'background-color'.
+ *     'borderRadius' => '4px', // Will become 'border-radius'.
  *     'backgroundColor' => 'var(--primary-color)',
  *     '&:hover' => [
  *       'backgroundColor' => 'var(--secondary-color)',
- *       'transform' => 'scale(1.05)',
  *     ],
- *     '&:active' => [
- *       'transform' => 'scale(0.95)',
- *     ],
- *     '& .icon' => [
- *       'marginRight' => '0.5rem', // Will become 'margin-right'
- *     ]
  *     ], 'components')
- * ->addRule('.text-center', [
- *     'textAlign' => 'center' // Will become 'text-align'
- *     ], 'utilities');
+ * // With no layer, the rule is emitted at the top level.
+ * ->addUtility('.text-center', ['text-align' => 'center']);
  *
  * echo $css->toCss();
  */
@@ -570,7 +600,9 @@ class TailwindStylesheet {
       $css .= "\n";
     }
 
-    // Add @import statements first (they must be at the beginning).
+    // Add @import statements LAST. This looks wrong and is not: see the
+    // class docblock. An imported stylesheet is inlined after the @theme
+    // block above it, which is what lets a theme's token beat a module's.
     if (!empty($this->imports)) {
       $css .= "/* Imports */\n";
       foreach ($this->imports as $import) {

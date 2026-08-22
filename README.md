@@ -121,6 +121,36 @@ Production builds refuse to run while a dev server is answering on the vite
 port — the running dev session already serves changes via HMR, and a prod
 build would silently disconnect it. Pass `--force` to override.
 
+### The generated stylesheet
+
+Prepare writes `tailwind.neo.css` beside each scope's primary CSS file — the
+entrypoint that imports `"tailwindcss"`. It is generated; do not edit it. Its
+sections are emitted in a fixed order:
+
+1. the file header and the `@plugin` line
+2. `@source` lines
+3. the `@theme` block — every custom property, and the only place one goes
+4. top-level rules, unsorted, in insertion order
+5. `@layer components` — the one layer, its rules in comparator order
+6. `@custom-variant` lines
+7. `@import` lines
+
+Two of those will look wrong to a reader who knows CSS, and neither is.
+
+**`@utility` rules are top-level, outside any layer.** Tailwind 4 does not
+register an `@utility` declared inside a layer, so folding the bucket into a
+default layer would silently drop every icon, card, badge and container
+utility. The bucket is unsorted for a related reason: Tailwind resolves
+`@utility` cross-references from its own registry rather than by file order.
+
+**`@import` comes last, not first.** The artifact is never served to a browser
+— Vite and Lightning CSS inline each import where it appears — so the position
+is free to carry meaning, and it carries override precedence: an imported
+stylesheet is inlined after the generated `@theme` block, which is what lets a
+theme's token beat the same token from a module's build-event subscriber.
+Moving it to the top inverts that silently. The reasoning is in the
+`TailwindStylesheet` class docblock.
+
 BUILD STATUS
 ------------
 

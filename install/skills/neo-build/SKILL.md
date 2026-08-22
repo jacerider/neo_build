@@ -76,6 +76,8 @@ below write `dist/`.
 
 All prod builds are refused while a dev server is answering (see Step 0); `--force` overrides.
 
+**Base-layer Tailwind data is no longer accepted.** `addTailwindBase()`, `getTailwindBase()` and `clearTailwindBase()` are gone from `NeoBuildCollection`, and the stylesheet has no base layer to route to. `@layer base` reached none of the generated stylesheets on any site: `neo_font`, the only caller anywhere, had always passed an empty array. A subscriber that needs base-level declarations puts custom properties in the theme (`addTailwindThemeItem()`) and rules in components (`addTailwindComponents()`). This removed one of the eight collection signatures the preparer work published for sibling subscribers — announced rather than silent, and `NeoBuildCollectionContractTest` now pins seven.
+
 drush (manifest + lifecycle):
 
 - `drush neo:build:status` / `neo-status` — dev mode, dev scope, and a live probe of the dev server (`--format=json` for scripting). **Run this first.**
