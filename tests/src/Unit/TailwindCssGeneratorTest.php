@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\Group;
  * Tests the tailwind.neo.css artifact generator.
  *
  * The stylesheet carries everything the partition rule assigns to CSS —
- * imports, sources, `--` theme variables, base, components, utilities and
+ * imports, sources, `--` theme variables, components, utilities and
  * variants — rendered by TailwindStylesheet behind a header and the @plugin
  * line that points at the module's Tailwind plugin. It lands beside the
  * scope's primary file; with no primary file there is no artifact, and the
@@ -54,7 +54,6 @@ class TailwindCssGeneratorTest extends UnitTestCase {
     $collection->addTailwindSource('front:Files', 'themes/front/src/**/*.twig');
     $collection->addTailwindThemeItem('--color-brand', 'red');
     $collection->addTailwindTheme(['extend' => ['colors' => ['brand' => 'var(--color-brand)']]]);
-    $collection->addTailwindBase(['html' => ['color' => 'red'], '--base-gap' => '1rem']);
     $collection->addTailwindComponents(['.card' => ['padding' => '1rem'], '--card-pad' => '2rem']);
     $collection->addTailwindUtility('.text-balance', ['text-wrap' => 'balance']);
     $collection->addTailwindVariants(['hocus' => ['&:hover', '&:focus']]);
@@ -78,8 +77,6 @@ class TailwindCssGeneratorTest extends UnitTestCase {
     $css->addImports(['/var/www/html/web/modules/contrib/neo/src/css/base.css']);
     $css->addSources(['/var/www/html/web/themes/front/src/**/*.twig']);
     $css->addCssVariable('--color-brand', 'red');
-    $css->addRule('html', ['color' => 'red'], 'base');
-    $css->addCssVariable('--base-gap', '1rem', 'base');
     $css->addRule('.card', ['padding' => '1rem'], 'components');
     $css->addCssVariable('--card-pad', '2rem', 'components');
     $css->addUtility('.text-balance', ['text-wrap' => 'balance']);
@@ -90,18 +87,17 @@ class TailwindCssGeneratorTest extends UnitTestCase {
   /**
    * Everything CSS owns reaches the stylesheet, and the collection keeps it.
    */
-  public function testRoutesVariablesBaseComponentsUtilitiesAndVariantsWithoutEmptyingTheCollection(): void {
+  public function testRoutesVariablesComponentsUtilitiesAndVariantsWithoutEmptyingTheCollection(): void {
     $collection = $this->populated();
 
     $content = (new TailwindCssGenerator())->generate($collection)->getContent();
 
-    foreach (['--color-brand', '--base-gap', 'html', '--card-pad', '.card', 'text-balance', 'hocus'] as $needle) {
+    foreach (['--color-brand', '--card-pad', '.card', 'text-balance', 'hocus'] as $needle) {
       $this->assertStringContainsString($needle, $content);
     }
     $this->assertSame(['neo:base' => 'modules/contrib/neo/src/css/base.css'], $collection->getTailwindImports());
     $this->assertSame(['front:Files' => 'themes/front/src/**/*.twig'], $collection->getTailwindSources());
     $this->assertSame('red', $collection->getTailwindTheme()['--color-brand']);
-    $this->assertArrayHasKey('html', $collection->getTailwindBase());
     $this->assertArrayHasKey('.card', $collection->getTailwindComponents());
     $this->assertArrayHasKey('.text-balance', $collection->getTailwindUtilities());
     $this->assertArrayHasKey('hocus', $collection->getTailwindVariants());

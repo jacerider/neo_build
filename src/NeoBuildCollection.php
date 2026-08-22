@@ -494,41 +494,6 @@ class NeoBuildCollection {
   }
 
   /**
-   * Adds Tailwind base styles.
-   *
-   * @param array $data
-   *   The base style data to add.
-   *
-   * @return $this
-   *   The current instance for method chaining.
-   */
-  public function addTailwindBase(array $data): self {
-    $this->neo['tailwind']['base'] = NestedArray::mergeDeep($this->neo['tailwind']['base'] ?? [], $data);
-    return $this;
-  }
-
-  /**
-   * Gets the Tailwind base styles.
-   *
-   * @return array
-   *   The Tailwind base style data.
-   */
-  public function getTailwindBase(): array {
-    return $this->neo['tailwind']['base'] ?? [];
-  }
-
-  /**
-   * Clears all Tailwind base styles.
-   *
-   * @return $this
-   *   The current instance for method chaining.
-   */
-  public function clearTailwindBase(): self {
-    $this->neo['tailwind']['base'] = [];
-    return $this;
-  }
-
-  /**
    * Adds Tailwind components.
    *
    * @param array $data

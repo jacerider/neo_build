@@ -48,7 +48,6 @@ class NeoJsonGeneratorTest extends UnitTestCase {
     $collection = $this->collection();
     $collection->addTailwindSource('front:Files', 'themes/front/src/**/*.twig');
     $collection->addTailwindImport('neo:base', 'modules/contrib/neo/src/css/base.css');
-    $collection->addTailwindBase(['html' => ['color' => 'red']]);
     $collection->addTailwindComponents(['.card' => ['padding' => '1rem']]);
     $collection->addTailwindUtility('.text-balance', ['text-wrap' => 'balance']);
     $collection->addTailwindVariants(['hocus' => ['&:hover', '&:focus']]);
@@ -69,7 +68,6 @@ class NeoJsonGeneratorTest extends UnitTestCase {
     // Read-only: the collection still holds everything the CSS artifact needs.
     $this->assertSame(['front:Files' => 'themes/front/src/**/*.twig'], $collection->getTailwindSources());
     $this->assertSame(['neo:base' => 'modules/contrib/neo/src/css/base.css'], $collection->getTailwindImports());
-    $this->assertArrayHasKey('html', $collection->getTailwindBase());
     $this->assertArrayHasKey('.card', $collection->getTailwindComponents());
     $this->assertArrayHasKey('.text-balance', $collection->getTailwindUtilities());
     $this->assertArrayHasKey('hocus', $collection->getTailwindVariants());

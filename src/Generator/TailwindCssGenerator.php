@@ -11,8 +11,8 @@ use Drupal\neo_build\NeoBuildCollection;
  *
  * The artifact lands beside the scope's primary file — the CSS entrypoint that
  * imports "tailwindcss" — and carries everything the partition rule assigns
- * to CSS: the imports and sources, the `--` theme variables, the base rules,
- * the component rules, the utilities and the variants, rendered by
+ * to CSS: the imports and sources, the `--` theme variables, the component
+ * rules, the utilities and the variants, rendered by
  * TailwindStylesheet behind a header and the @plugin line that points at the
  * module's Tailwind plugin.
  *
@@ -56,14 +56,6 @@ final class TailwindCssGenerator implements ArtifactGeneratorInterface {
     foreach ($collection->getTailwindTheme() as $key => $value) {
       if (str_starts_with($key, '--') && is_string($value)) {
         $css->addCssVariable($key, $value);
-      }
-    }
-    foreach ($collection->getTailwindBase() as $key => $value) {
-      if (str_starts_with($key, '--') && is_string($value)) {
-        $css->addCssVariable($key, $value, 'base');
-      }
-      else {
-        $css->addRule($key, $value, 'base');
       }
     }
     foreach ($collection->getTailwindComponents() as $key => $value) {

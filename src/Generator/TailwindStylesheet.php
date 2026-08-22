@@ -95,7 +95,6 @@ class TailwindStylesheet {
    * @var array
    */
   private array $layers = [
-    'base' => ['rules' => []],
     'components' => ['rules' => []],
     'utilities' => ['rules' => []],
   ];
@@ -562,7 +561,7 @@ class TailwindStylesheet {
 
     // Add layer declarations if we have layered rules.
     if ($this->hasLayeredRules() && FALSE) {
-      $layerNames = array_merge(['base', 'components', 'utilities'], $this->customLayers);
+      $layerNames = array_merge(['components', 'utilities'], $this->customLayers);
       $activeLayers = array_filter($layerNames, fn($layer) =>
         !empty($this->layers[$layer]['rules'])
       );
@@ -578,7 +577,7 @@ class TailwindStylesheet {
     }
 
     // Add layered rules in the correct order.
-    $layerOrder = array_merge(['base', 'components', 'utilities'], $this->customLayers);
+    $layerOrder = array_merge(['components', 'utilities'], $this->customLayers);
 
     foreach ($layerOrder as $layerName) {
       if (isset($this->layers[$layerName]) && !empty($this->layers[$layerName]['rules'])) {

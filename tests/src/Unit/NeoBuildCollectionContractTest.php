@@ -12,9 +12,18 @@ use PHPUnit\Framework\Attributes\Group;
  * Pins the collection methods the sibling packages' subscribers call.
  *
  * The neo_icon, neo_font, neo_modal, neo_alchemist and neo_color packages
- * subscribe to the build event and call these eight methods on the collection.
+ * subscribe to the build event and call these seven methods on the collection.
  * Their names and signatures are the collection's public edge: a rename
  * here is a release in five other packages. This test fails loudly on one.
+ *
+ * One signature has been removed since this list was published, deliberately
+ * and as an announced exception: `addTailwindBase(array $data)`. The base
+ * layer it fed reached no stylesheet on any site, because neo_font — its only
+ * caller anywhere — had always passed an empty array. It was removed end to
+ * end together with neo_font's call, so no sibling subscriber was left calling
+ * a method that had gone. Sibling authors were told rather than left to
+ * discover it: breaking a published signature silently is the failure this
+ * test exists to prevent, and an announced break is not an exemption from it.
  */
 #[Group('neo_build')]
 class NeoBuildCollectionContractTest extends UnitTestCase {
@@ -25,7 +34,6 @@ class NeoBuildCollectionContractTest extends UnitTestCase {
   protected const CONTRACT = [
     'addTailwindTheme' => 'array $data',
     'addTailwindThemeItem' => 'string $key, string $value, ?string $position = NULL',
-    'addTailwindBase' => 'array $data',
     'addTailwindComponents' => 'array $data',
     'addTailwindUtility' => 'string $key, array $properties',
     'addTailwindUtilities' => 'array $data',
