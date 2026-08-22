@@ -8,7 +8,6 @@ use Drupal\neo_build\Generator\NeoJsonGenerator;
 use Drupal\neo_build\NeoBuildCollection;
 use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\Group;
-use Symfony\Component\Console\Output\NullOutput;
 
 /**
  * Tests the neo.json artifact generator.
@@ -32,7 +31,6 @@ class NeoJsonGeneratorTest extends UnitTestCase {
    */
   protected function collection(bool $dev = FALSE): NeoBuildCollection {
     return new NeoBuildCollection(
-      new NullOutput(),
       'wps.ddev.site',
       5173,
       TRUE,

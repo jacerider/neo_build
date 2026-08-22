@@ -5,19 +5,16 @@ declare(strict_types=1);
 namespace Drupal\neo_build;
 
 use Drupal\Component\Utility\NestedArray;
-use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * Object representing vite manifest.
+ * The build collection: the data prepare gathers for a scope.
+ *
+ * Pure data — add, get and clear over each family — built by the preparer,
+ * handed to the build event so the sibling packages' subscribers can add to
+ * it, then read by the artifact generators. It does not print and it does not
+ * look at the filesystem; the preparer does both.
  */
 class NeoBuildCollection {
-
-  /**
-   * The output interface.
-   *
-   * @var \Symfony\Component\Console\Output\OutputInterface
-   */
-  private OutputInterface $output;
 
   /**
    * The data collection.
@@ -74,8 +71,6 @@ class NeoBuildCollection {
   /**
    * Constructs a new NeoBuildCollection object.
    *
-   * @param \Symfony\Component\Console\Output\OutputInterface $output
-   *   The output interface.
    * @param string $host
    *   The host.
    * @param int $port
@@ -92,7 +87,6 @@ class NeoBuildCollection {
    *   The Neo root path.
    */
   public function __construct(
-    OutputInterface $output,
     string $host,
     int $port,
     bool $https,
@@ -101,7 +95,6 @@ class NeoBuildCollection {
     string $docRoot,
     string $neoRoot,
   ) {
-    $this->output = $output;
     $this->setHost($host);
     $this->setPort($port);
     $this->setHttps($https);
@@ -350,75 +343,6 @@ class NeoBuildCollection {
    */
   public function getTsIncludes(): array {
     return $this->ts['include'];
-  }
-
-  /**
-   * Adds an extension to the collection.
-   *
-   * @param \Drupal\neo_build\NeoExtension $extension
-   *   The extension to add.
-   */
-  private function addExtension(NeoExtension $extension) {
-    $this->output->writeln(dt('<info>✓ [neo]</info> Extension added: @name (@id)', [
-      '@name' => $extension->getLabel(),
-      '@id' => $extension->getName(),
-    ]));
-    $this->addTailwindFromExtension($extension);
-
-    foreach ($extension->getLibraries() as $library) {
-      $this->addViteLibFromLibrary($library);
-      $this->addStylelintFromLibrary($library);
-    }
-  }
-
-  /**
-   * Adds a module extension.
-   *
-   * @param \Drupal\neo_build\NeoExtension $extension
-   *   The module extension to add.
-   */
-  public function addModule(NeoExtension $extension) {
-    $this->addExtension($extension);
-  }
-
-  /**
-   * Adds a theme extension.
-   *
-   * @param \Drupal\neo_build\NeoExtension $extension
-   *   The theme extension to add.
-   */
-  public function addTheme(NeoExtension $extension) {
-    $this->addExtension($extension);
-  }
-
-  /**
-   * Add Tailwind path from extension.
-   *
-   * @param \Drupal\neo_build\NeoExtension $extension
-   *   The extension to add the Tailwind path for.
-   *
-   * @return $this
-   *   The current instance for method chaining.
-   */
-  protected function addTailwindFromExtension(NeoExtension $extension): self {
-    $path = $extension->getPath();
-    foreach ($extension->getLibraries() as $libraryId => $library) {
-      if ($library->isImport()) {
-        $this->addTailwindImport($extension->getName() . ':' . $libraryId, $library->getCssPath());
-      }
-    }
-    $this->addTailwindSource($extension->getName() . ':Files', $path . '/src/**/*.{js,ts,jsx,tsx,php}');
-    $this->addTailwindSource($extension->getName() . ':Module', $path . '/*.{module,inc,theme}');
-    if (is_dir($path . '/templates')) {
-      $this->addTailwindSource($extension->getName() . ':Twig', $path . '/templates/**/*.twig');
-    }
-    foreach ($extension->getTailwindInfo() as $key => $data) {
-      $method = 'addTailwind' . ucfirst($key);
-      if (method_exists($this, $method)) {
-        $this->$method($data);
-      }
-    }
-    return $this;
   }
 
   /**
@@ -766,23 +690,6 @@ class NeoBuildCollection {
   }
 
   /**
-   * Checks if a CSS file contains Tailwind base imports.
-   *
-   * @param string $cssPath
-   *   The path to the CSS file.
-   *
-   * @return bool
-   *   TRUE if the file contains Tailwind base CSS imports, FALSE otherwise.
-   */
-  protected function isTailwindBaseCss(string $cssPath): bool {
-    $data = file_get_contents($cssPath);
-    if (preg_match('/^@import\s+["\']tailwindcss["\'](.*);?$/m', $data)) {
-      return TRUE;
-    }
-    return FALSE;
-  }
-
-  /**
    * Sets the primary root path.
    *
    * @param string $path
@@ -834,54 +741,6 @@ class NeoBuildCollection {
   }
 
   /**
-   * Adds Vite library configuration from a Neo library.
-   *
-   * @param \Drupal\neo_build\NeoLibrary $library
-   *   The library to add Vite configuration for.
-   *
-   * @return $this
-   *   The current instance for method chaining.
-   */
-  protected function addViteLibFromLibrary(NeoLibrary $library): self {
-    if ($path = $library->getCssPath()) {
-      if (!file_exists($path)) {
-        $this->output->writeln(dt('<comment>⚠ [neo]</comment> Missing CSS file skipped: @path (@id)', [
-          '@path' => $path,
-          '@id' => $library->id(),
-        ]));
-      }
-      // Libraries set for import do not need to be handled by Vite as they
-      // will be imported into the main CSS file.
-      elseif (!$library->isImport()) {
-        // If data has string @import "tailwindcss" this is the primary css.
-        if ($this->isTailwindBaseCss($path)) {
-          $this->setPrimaryRoot($library->getExtension()->getPath());
-          $this->setPrimaryFile($path);
-        }
-        $this->addViteLib($library->id() . ':Css', $path);
-      }
-    }
-    if ($path = $library->getJsPath()) {
-      if (!file_exists($path)) {
-        $this->output->writeln(dt('<comment>⚠ [neo]</comment> Missing JS file skipped: @path (@id)', [
-          '@path' => $path,
-          '@id' => $library->id(),
-        ]));
-        return $this;
-      }
-      $this->addViteLib($library->id() . ':Js', $path);
-      if (substr($path, -3) === '.ts') {
-        $this->addTsInclude($path);
-        $typingPath = $library->getExtension()->getPath() . '/src/js/typings';
-        if (is_dir($typingPath)) {
-          $this->addTsInclude($typingPath . '/*.d.ts');
-        }
-      }
-    }
-    return $this;
-  }
-
-  /**
    * Add a Vite library path.
    *
    * @param string $id
@@ -908,41 +767,17 @@ class NeoBuildCollection {
   }
 
   /**
-   * Add to stylelint paths from library.
-   *
-   * @param \Drupal\neo_build\NeoLibrary $library
-   *   The library to add stylelint paths for.
-   *
-   * @return $this
-   *   The current instance for method chaining.
-   */
-  protected function addStylelintFromLibrary(NeoLibrary $library): self {
-    if ($path = $library->getCssPath()) {
-      if ($library->getType() === 'theme') {
-        $this->addStylelint($library->getExtension()->getName(), dirname($path));
-      }
-      else {
-        $this->addStylelint($library->id(), $path);
-      }
-    }
-    return $this;
-  }
-
-  /**
    * Add a stylelint path.
    *
    * @param string $id
    *   A unique ID for the library. Typically extensionName:libraryName.
    * @param string $path
-   *   The library path.
+   *   The path or glob, relative to the app root, stored as handed over.
    *
    * @return $this
    *   The current instance for method chaining.
    */
   public function addStylelint(string $id, string $path): self {
-    if (is_dir($path)) {
-      $path .= '/**/*.{css,scss}';
-    }
     $this->neo['stylelint'][$id] = $this->getRelativeRoot() . $path;
     return $this;
   }

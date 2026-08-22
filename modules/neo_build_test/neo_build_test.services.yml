@@ -1,0 +1,6 @@
+services:
+  neo_build_test.build_subscriber:
+    class: Drupal\neo_build_test\EventSubscriber\NeoBuildTestSubscriber
+    arguments: ['@state']
+    tags:
+      - { name: event_subscriber }

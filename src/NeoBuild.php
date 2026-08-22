@@ -263,7 +263,8 @@ class NeoBuild {
     $settings += [
       'port' => 5173,
     ];
-    $settings['host'] = $_SERVER['SERVER_NAME'];
+    // Under PHPUnit there is no server name; default rather than fail.
+    $settings['host'] = $_SERVER['SERVER_NAME'] ?? 'localhost';
     $settings['https'] = TRUE;
     // Global settings.
     if (isset($settings[$setting])) {

@@ -8,27 +8,18 @@ use Consolidation\OutputFormatters\StructuredData\PropertyList;
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Component\Utility\NestedArray;
-use Drupal\Core\Asset\LibraryDiscoveryInterface;
 use Drupal\Core\Cache\Cache;
-use Drupal\Core\Cache\CacheCollector;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\ThemeExtensionList;
-use Drupal\Core\Extension\ThemeHandlerInterface;
 use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Template\TwigEnvironment;
-use Drupal\neo_build\AnalysedExtensionResolver;
-use Drupal\neo_build\Generator\NeoJsonGenerator;
-use Drupal\neo_build\Generator\PhpstanGenerator;
-use Drupal\neo_build\Generator\TailwindCssGenerator;
-use Drupal\neo_build\Generator\TsConfigGenerator;
 use Drupal\neo_build\NeoBuild;
-use Drupal\neo_build\NeoBuildCollection;
 use Drupal\neo_build\NeoExtensionList;
+use Drupal\neo_build\PrepareNotice;
+use Drupal\neo_build\Preparer;
 use Drush\Commands\DrushCommands as CoreCommands;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
-use Drupal\neo_build\Event\NeoBuildEvent;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -48,136 +39,50 @@ class DrushCommands extends CoreCommands {
    */
   public function __construct(
     private readonly string $appRoot,
-    private readonly EventDispatcherInterface $eventDispatcher,
     private readonly PluginManagerInterface $scopeManager,
     private readonly FileSystemInterface $fileSystem,
     private readonly ModuleExtensionList $moduleExtensionList,
     private readonly ModuleHandlerInterface $moduleHandler,
     private readonly ThemeExtensionList $themeExtensionList,
-    private readonly ThemeHandlerInterface $themeHandler,
-    private readonly LibraryDiscoveryInterface $libraryDiscovery,
     private readonly NeoExtensionList $neoExtensionList,
     private readonly TwigEnvironment $twig,
-    private readonly AnalysedExtensionResolver $analysedExtensionResolver,
+    private readonly Preparer $preparer,
   ) {
     parent::__construct();
   }
 
   /**
-   * Generate neo.json.
+   * Prepare a scope: write its four build artifacts.
+   *
+   * Writes neo.json, neo.tsconfig.json and phpstan.neon at the project root,
+   * and tailwind.neo.css beside the scope's primary file.
    *
    * @command neo:build
    * @usage drush neo:build
-   *   Run the neoBuild build generator.
+   *   Prepare the front scope.
+   * @usage drush neo:build back
+   *   Prepare the back scope.
    * @aliases neo
    *
-   * @throws \Exception
-   *   If no index or no server were passed or passed values are invalid.
+   * @throws \InvalidArgumentException
+   *   When the scope does not exist.
    */
   public function neoBuild(string $scope = 'front') {
-    if (!$this->scopeManager->hasDefinition($scope)) {
-      throw new \Exception("Scope '$scope' does not exist.");
-    }
+    $result = $this->preparer->prepare($scope);
 
-    // Clear extension information.
-    $this->moduleExtensionList->reset();
-    $this->themeHandler->refreshInfo();
-
-    $scopeDefinition = $this->scopeManager->getDefinition($scope);
     $this->output()->writeln((string) dt('<info>⟢ [neo]</info> Prepare Scope: @scope', [
-      '@scope' => $scopeDefinition['label'],
+      '@scope' => $result->getScopeLabel(),
     ]));
-
-    NeoBuild::setNeoState('scope', $scope);
-    // Example: /Users/*/Sites/*/*.
-    $root = $this->getRoot();
-    // Example: web/.
-    $docRoot = $this->getDocRoot();
-
-    $this->clearLibraryDefinitions();
-    NeoBuild::preventAlter();
-
-    $collection = new NeoBuildCollection(
-      $this->output(),
-      NeoBuild::getNeoSetting('host'),
-      NeoBuild::getNeoSetting('port'),
-      NeoBuild::getNeoSetting('https'),
-      NeoBuild::getNeoState('dev', FALSE),
-      $root,
-      $docRoot,
-      $this->moduleHandler->getModule('neo_build')->getPath(),
-    );
-    $collection->setScope($scope);
-
-    // The analysed extensions: every Neo extension, every enabled
-    // `package: Neo` extension, modules/custom — and the nested ones the
-    // exclusion rule keeps out of the analysed paths.
-    $analysedExtensions = $this->analysedExtensionResolver->resolve();
-    $excludedExtensions = $this->analysedExtensionResolver->resolveExcluded($analysedExtensions);
-
-    $scopedExtensions = $this->neoExtensionList->all([$scope]);
-    foreach ($scopedExtensions as $extension) {
-      if ($extension->getType() === 'module') {
-        $collection->addModule($extension);
-      }
-      else {
-        $collection->addTheme($extension);
-      }
+    foreach ($result->getNotices() as $notice) {
+      $marker = $notice->getType() === PrepareNotice::EXTENSION_ADDED
+        ? '<info>✓ [neo]</info>'
+        : '<comment>⚠ [neo]</comment>';
+      $this->output()->writeln((string) dt($marker . ' @message', [
+        '@message' => $notice->getMessage(),
+      ]));
     }
-
-    $event = new NeoBuildEvent($collection, $scopedExtensions);
-    $this->eventDispatcher->dispatch($event, NeoBuildEvent::EVENT_NAME);
-
-    NeoBuild::preventAlter(FALSE);
-    $this->clearLibraryDefinitions();
-
-    // One generator per artifact, each read-only over the collection, so the
-    // order they run in cannot change what any of them writes.
-    $generators = [
-      new NeoJsonGenerator(),
-      new TsConfigGenerator(),
-      new PhpstanGenerator($analysedExtensions, PhpstanGenerator::extensionInstallerInstalled(), $excludedExtensions),
-      new TailwindCssGenerator(),
-    ];
-    foreach ($generators as $generator) {
-      if ($artifact = $generator->generate($collection)) {
-        $this->fileSystem->saveData($artifact->getContent(), $artifact->getDestination(), FileExists::Replace);
-      }
-      elseif ($generator instanceof TailwindCssGenerator) {
-        $this->output()->writeln((string) dt('<comment>⚠ [neo]</comment> ' . TailwindCssGenerator::MISSING_PRIMARY_FILE_NOTICE));
-      }
-    }
-
     $this->output()->writeln((string) dt('<info>⟢ [neo]</info> Prepare Success'));
     $this->output()->writeln('');
-
-    Cache::invalidateTags(['exo_build:build']);
-  }
-
-  /**
-   * Clears the cached library definitions.
-   *
-   * Prepare switches the render-time library rewrite off and on around the
-   * build event, so definitions cached on either side of that switch are wrong
-   * for the other; they are cleared before and after.
-   *
-   * On Drupal 11.1+ `library.discovery` is LibraryDiscoveryCollector, a
-   * CacheCollector: clear() empties its in-process storage and invalidates the
-   * persisted item, and nothing is persisted at shutdown. On 10.3 it is the
-   * thin LibraryDiscovery wrapper, whose collector is out of reach; there the
-   * persisted item is tagged `library_info`, so invalidating that tag drops it
-   * — what the wrapper's clearCachedDefinitions() did, minus the call to a
-   * method 11.1 deprecates. The one thing the tag path does not do is reset
-   * the wrapper's in-process copy, which only matters if a build-event
-   * subscriber reads definitions through `library.discovery` mid-prepare; no
-   * Neo subscriber does, and the process ends with the command.
-   */
-  protected function clearLibraryDefinitions(): void {
-    if ($this->libraryDiscovery instanceof CacheCollector) {
-      $this->libraryDiscovery->clear();
-      return;
-    }
-    Cache::invalidateTags(['library_info']);
   }
 
   /**

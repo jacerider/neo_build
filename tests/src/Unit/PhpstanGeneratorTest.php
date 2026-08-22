@@ -9,7 +9,6 @@ use Drupal\neo_build\Generator\PhpstanGenerator;
 use Drupal\neo_build\NeoBuildCollection;
 use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\Group;
-use Symfony\Component\Console\Output\NullOutput;
 
 /**
  * Tests the phpstan.neon artifact generator.
@@ -46,7 +45,6 @@ class PhpstanGeneratorTest extends UnitTestCase {
    */
   protected function collection(): NeoBuildCollection {
     return new NeoBuildCollection(
-      new NullOutput(),
       'wps.ddev.site',
       5173,
       TRUE,

@@ -3,16 +3,13 @@ services:
     class: Drupal\neo_build\Commands\DrushCommands
     arguments:
       - '%app.root%'
-      - '@event_dispatcher'
       - '@plugin.manager.neo_build_scope'
       - '@file_system'
       - '@extension.list.module'
       - '@module_handler'
       - '@extension.list.theme'
-      - '@theme_handler'
-      - '@library.discovery'
       - '@extension.list.neo'
       - '@twig'
-      - '@neo_build.analysed_extension_resolver'
+      - '@neo_build.preparer'
     tags:
       - { name: drush.command }

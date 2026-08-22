@@ -8,7 +8,6 @@ use Drupal\neo_build\Generator\TsConfigGenerator;
 use Drupal\neo_build\NeoBuildCollection;
 use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\Group;
-use Symfony\Component\Console\Output\NullOutput;
 
 /**
  * Tests the neo.tsconfig.json artifact generator.
@@ -25,7 +24,6 @@ class TsConfigGeneratorTest extends UnitTestCase {
    */
   public function testWritesModuleTypingsFirstThenEntrypointsInCollectionOrder(): void {
     $collection = new NeoBuildCollection(
-      new NullOutput(),
       'wps.ddev.site',
       5173,
       TRUE,

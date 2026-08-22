@@ -1,0 +1,8 @@
+# The module is back-only, so this library is prepared by the back scope and
+# left out of the front scope.
+back:
+  version: VERSION
+  neo: true
+  css:
+    component:
+      src/css/neoBuildTestBackOnly.css: {}

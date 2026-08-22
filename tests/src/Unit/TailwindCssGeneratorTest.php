@@ -9,7 +9,6 @@ use Drupal\neo_build\NeoBuildCollection;
 use Drupal\neo_build\NeoCss;
 use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\Group;
-use Symfony\Component\Console\Output\NullOutput;
 
 /**
  * Tests the tailwind.neo.css artifact generator.
@@ -34,7 +33,6 @@ class TailwindCssGeneratorTest extends UnitTestCase {
    */
   protected function collection(): NeoBuildCollection {
     return new NeoBuildCollection(
-      new NullOutput(),
       'wps.ddev.site',
       5173,
       TRUE,
