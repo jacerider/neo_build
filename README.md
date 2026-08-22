@@ -240,6 +240,31 @@ contrib module.
 BUILD SCOPES
 -------------
 
+**The scope set is closed.** There are exactly two scopes — `front` and `back` —
+and they are defined in one place, the `Drupal\neo_build\Scope` enum, which
+carries each scope's id, label, description and theme name. There is no YAML to
+ship and no alter hook to implement: a scope cannot be added from outside this
+module, and until the enum replaced it, the plugin type that appeared to allow
+it never actually could.
+
+**A scope's id is the machine name of the theme it compiles into.** That is the
+rule, not a coincidence of naming, and `Scope::themeName()` is where it is
+stated. The `front` scope compiles into the `front` theme, `back` into `back`.
+
+Adding a third scope is a real piece of work rather than a line of
+configuration, which is why the set is closed rather than extensible. It needs,
+at minimum:
+
+* a **theme** whose machine name is the scope's id,
+* a **base theme** for it to extend,
+* a **primary file** — the CSS entrypoint carrying `@import "tailwindcss"`,
+  without which the scope compiles no Tailwind at all,
+* an **inline library**, so the scope's generated stylesheet reaches a page,
+* a **settings entry**, for the modules that style per scope.
+
+Shipping YAML would have supplied none of those. If you genuinely need a third
+scope, add a case to the enum and work through that list.
+
 In `<theme/module>.libraries.yml` there is also an option to set the build
 scope. The scope impacts Tailwind so that aggregated classes are only built
 for the build of this scope when calling `@tailwind base;` within a CSS or
@@ -273,7 +298,8 @@ neo: {
 }
 ```
 
-If a scope is not defined, theme will act on all scopes.
+If a scope is not defined, the default depends on the extension type: a
+**module** falls into every scope, and a **theme** falls into `front` alone.
 
 COMPONENTS
 ----------
