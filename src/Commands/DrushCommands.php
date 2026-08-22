@@ -107,9 +107,9 @@ class DrushCommands extends CoreCommands {
     );
     $collection->setScope($scope);
 
-    // Resolve the analysed extensions before the scoped call below: the
-    // resolver asks the Neo extension list un-scoped, and that has to be the
-    // first call in the process.
+    // The analysed extensions: every Neo extension, every enabled
+    // `package: Neo` extension, modules/custom — and the nested ones the
+    // exclusion rule keeps out of the analysed paths.
     $analysedExtensions = $this->analysedExtensionResolver->resolve();
     $excludedExtensions = $this->analysedExtensionResolver->resolveExcluded($analysedExtensions);
 

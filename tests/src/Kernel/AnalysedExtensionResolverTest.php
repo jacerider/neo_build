@@ -17,12 +17,6 @@ use PHPUnit\Framework\Attributes\Group;
  * that directory exists. Before the package rule, a PHP-only Neo package — one
  * with no Neo libraries — was never analysed even though it is code a site is
  * allowed to commit to; neo_build itself was the first casualty.
- *
- * Every test calls resolve() exactly once. The resolver asks the Neo extension
- * list for the un-scoped list, and until the second-call regression in
- * NeoExtensionList::all() is fixed a second un-scoped call in one process
- * throws. Each test method boots its own kernel, so one call per method is
- * the honest shape.
  */
 #[Group('neo_build')]
 class AnalysedExtensionResolverTest extends KernelTestBase {

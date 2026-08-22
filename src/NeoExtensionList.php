@@ -62,7 +62,7 @@ final class NeoExtensionList {
 
       $extensions = array_merge($modules, $themes);
       foreach ($extensions as $name => $extension) {
-        if ($neoExtension = $extensionsToAdd[$name] ?? $this->loadExtension($name, $extension)) {
+        if ($neoExtension = $this->loadExtension($name, $extension)) {
           if (!empty($extension->info['neo'])) {
             $neoExtensions[$name] = $neoExtension;
           }
@@ -85,7 +85,7 @@ final class NeoExtensionList {
       return array_filter($this->neoExtensionsBuilt, fn($neoExtension) => $neoExtension->allowScope($scope));
     }
 
-    return $neoExtensions;
+    return $this->neoExtensionsBuilt;
   }
 
   /**
