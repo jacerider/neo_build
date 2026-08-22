@@ -6,7 +6,7 @@ namespace Drupal\Tests\neo_build\Unit;
 
 use Drupal\neo_build\Generator\TailwindCssGenerator;
 use Drupal\neo_build\NeoBuildCollection;
-use Drupal\neo_build\NeoCss;
+use Drupal\neo_build\Generator\TailwindStylesheet;
 use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\Group;
 
@@ -15,10 +15,10 @@ use PHPUnit\Framework\Attributes\Group;
  *
  * The stylesheet carries everything the partition rule assigns to CSS —
  * imports, sources, `--` theme variables, base, components, utilities and
- * variants — rendered by NeoCss behind a header and the @plugin line that
- * points at the module's Tailwind plugin. It lands beside the scope's primary
- * file; with no primary file there is no artifact, and the caller gets a
- * reason rather than a stray file at the docroot root.
+ * variants — rendered by TailwindStylesheet behind a header and the @plugin
+ * line that points at the module's Tailwind plugin. It lands beside the
+ * scope's primary file; with no primary file there is no artifact, and the
+ * caller gets a reason rather than a stray file at the docroot root.
  */
 #[Group('neo_build')]
 class TailwindCssGeneratorTest extends UnitTestCase {
@@ -62,18 +62,19 @@ class TailwindCssGeneratorTest extends UnitTestCase {
   }
 
   /**
-   * The header and plugin line come first; the NeoCss body follows.
+   * The header and plugin line come first; the stylesheet body follows.
    *
-   * The body is pinned against NeoCss fed the same inputs in the same order,
-   * so the generator's routing is exactly the routing the command used to do.
+   * The body is pinned against TailwindStylesheet fed the same inputs in the
+   * same order, so the generator's routing is exactly the routing the command
+   * used to do.
    */
-  public function testRendersHeaderAndPluginLineAheadOfTheNeoCssBody(): void {
+  public function testRendersHeaderAndPluginLineAheadOfTheStylesheetBody(): void {
     $artifact = (new TailwindCssGenerator())->generate($this->populated());
 
     $this->assertSame('/var/www/html/web/themes/front/src/css/tailwind.neo.css', $artifact->getDestination());
     $this->assertStringStartsWith(self::HEADER, $artifact->getContent());
 
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addImports(['/var/www/html/web/modules/contrib/neo/src/css/base.css']);
     $css->addSources(['/var/www/html/web/themes/front/src/**/*.twig']);
     $css->addCssVariable('--color-brand', 'red');
@@ -87,7 +88,7 @@ class TailwindCssGeneratorTest extends UnitTestCase {
   }
 
   /**
-   * Everything CSS owns reaches NeoCss, and the collection keeps all of it.
+   * Everything CSS owns reaches the stylesheet, and the collection keeps it.
    */
   public function testRoutesVariablesBaseComponentsUtilitiesAndVariantsWithoutEmptyingTheCollection(): void {
     $collection = $this->populated();

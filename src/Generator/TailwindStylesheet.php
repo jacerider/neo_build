@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\neo_build;
+namespace Drupal\neo_build\Generator;
 
 /**
  * Enhanced CSS builder.
@@ -12,7 +12,7 @@ namespace Drupal\neo_build;
  * Basic usage with layers, theme variables, nested rules and camelCase
  * properties:
  *
- * $css = new NeoCss();
+ * $css = new TailwindStylesheet();
  *
  * // Add theme variables.
  * $css->addCssVariable('--bg-site', '100px')
@@ -47,7 +47,7 @@ namespace Drupal\neo_build;
  *
  * echo $css->toCss();
  */
-class NeoCss {
+class TailwindStylesheet {
 
   /**
    * List of @import statements.

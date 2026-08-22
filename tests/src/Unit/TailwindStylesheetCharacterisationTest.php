@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\neo_build\Unit;
 
-use Drupal\neo_build\NeoCss;
+use Drupal\neo_build\Generator\TailwindStylesheet;
 use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\Group;
 
 /**
- * Characterises the bytes NeoCss emits today, before anything is removed.
+ * Characterises the bytes TailwindStylesheet emits, before anything is removed.
  *
- * NeoCss renders the body of every scope's tailwind.neo.css — the file
- * Tailwind compiles for every site running neo_build — and until this suite
- * existed nothing asserted a byte of it. These tests describe the class
+ * TailwindStylesheet renders the body of every scope's tailwind.neo.css — the
+ * file Tailwind compiles for every site running neo_build — and until this
+ * suite existed nothing asserted a byte of it. These tests describe the class
  * exactly as it stands so that each later removal is proven inert rather than
  * assumed so.
  *
@@ -33,7 +33,7 @@ use PHPUnit\Framework\Attributes\Group;
  * rule, so the bytes are pinned here where the failure names itself.
  */
 #[Group('neo_build')]
-class NeoCssCharacterisationTest extends UnitTestCase {
+class TailwindStylesheetCharacterisationTest extends UnitTestCase {
 
   /**
    * The sections come out in one fixed order, with imports last.
@@ -49,7 +49,7 @@ class NeoCssCharacterisationTest extends UnitTestCase {
    * seam has one.
    */
   public function testEmitsSectionsInOrderWithImportsLast(): void {
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addImport('/a/_utils.css');
     $css->addSource('/src/**/*.twig');
     $css->addCssVariable('--color-brand', 'red');
@@ -92,7 +92,7 @@ class NeoCssCharacterisationTest extends UnitTestCase {
    * A value that already ends in `;` does not get a second one.
    */
   public function testRendersThemeBlockInInsertionOrderPrefixingAndNotDoublingSemicolons(): void {
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addCssVariable('--z', '1');
     $css->addCssVariable('a-plain', '2');
     $css->addCssVariable('--semi', '3;');
@@ -119,7 +119,7 @@ class NeoCssCharacterisationTest extends UnitTestCase {
    * comes out as a bare `@apply …;` line rather than `apply: @apply …;`.
    */
   public function testEmitsTopLevelRulesUnsortedInInsertionOrderWithBareApply(): void {
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addUtility('.zzz', ['color' => 'red']);
     $css->addUtility('.aaa', ['apply' => '@apply block;']);
     $css->addRule('.mmm', ['font-size' => '1rem']);
@@ -152,7 +152,7 @@ class NeoCssCharacterisationTest extends UnitTestCase {
    * every components rule on every site.
    */
   public function testOrdersComponentsLayerByWeightThenSelector(): void {
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addRule('.zeta', ['color' => 'z'], NULL, 'components');
     $css->addRule('.alpha', ['color' => 'a'], NULL, 'components');
     $css->addRule('.mid', ['apply' => '@apply alpha;'], NULL, 'components');
@@ -185,7 +185,7 @@ class NeoCssCharacterisationTest extends UnitTestCase {
    * joined with ", " inside the parentheses.
    */
   public function testRendersCustomVariantsFromOneSelectorAndFromSeveral(): void {
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addVariant('one', '&:hover');
     $css->addVariant('many', ['.a &', '&.b']);
 
@@ -211,7 +211,7 @@ class NeoCssCharacterisationTest extends UnitTestCase {
    * imports.
    */
   public function testDeduplicatesSourcesAndImportsAndQuotesEachOnce(): void {
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addSource('/x.twig');
     $css->addSource('/x.twig');
     $css->addSource('"/y.twig"');
@@ -241,7 +241,7 @@ class NeoCssCharacterisationTest extends UnitTestCase {
    * spurious diff into every site's committed stylesheet.
    */
   public function testEmitsNothingAtAllForEmptyInput(): void {
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
 
     $this->assertSame('', $css->toCss());
   }
@@ -253,7 +253,7 @@ class NeoCssCharacterisationTest extends UnitTestCase {
    * blank line after the variants section from reaching the file.
    */
   public function testNeverEmitsLeadingOrTrailingWhitespace(): void {
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addSource('/src/**/*.twig');
     $css->addVariant('hocus', ['&:hover']);
 

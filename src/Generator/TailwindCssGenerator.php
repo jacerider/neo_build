@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Drupal\neo_build\Generator;
 
 use Drupal\neo_build\NeoBuildCollection;
-use Drupal\neo_build\NeoCss;
 
 /**
  * Generates tailwind.neo.css, the stylesheet Tailwind compiles for a scope.
@@ -13,9 +12,9 @@ use Drupal\neo_build\NeoCss;
  * The artifact lands beside the scope's primary file — the CSS entrypoint that
  * imports "tailwindcss" — and carries everything the partition rule assigns
  * to CSS: the imports and sources, the `--` theme variables, the base rules,
- * the component rules, the utilities and the variants, rendered by NeoCss
- * behind a header and the @plugin line that points at the module's Tailwind
- * plugin.
+ * the component rules, the utilities and the variants, rendered by
+ * TailwindStylesheet behind a header and the @plugin line that points at the
+ * module's Tailwind plugin.
  *
  * With no primary file there is nothing to write beside, so there is no
  * artifact: the generator returns NULL and the caller prints
@@ -48,7 +47,7 @@ final class TailwindCssGenerator implements ArtifactGeneratorInterface {
     $absolute = fn (string $path): string => $root . $docRoot . $path;
     $pluginPath = $absolute($collection->getNeoRoot() . 'tools/neo-tailwind-plugin.ts');
 
-    $css = new NeoCss();
+    $css = new TailwindStylesheet();
     $css->addImports(array_map($absolute, $collection->getTailwindImports()));
     $css->addSources(array_map($absolute, $collection->getTailwindSources()));
 
