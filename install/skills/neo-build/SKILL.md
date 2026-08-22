@@ -17,7 +17,7 @@ Full human reference: [web/modules/contrib/neo_build/README.md](web/modules/cont
 - **`neo: true` libraries** — in a `*.libraries.yml`, a library flagged `neo: true` (or `neo: {scope: front}`) lists `src/` entrypoints instead of `dist/`. The module swaps them for the compiled `dist/` assets (and pulls in their dependencies) using `manifest.json`. When the Vite **dev server** is up, it serves the live source instead.
 - **Scopes** — the build is partitioned into scopes: **`front`** (frontend theme) and **`back`** (backend/admin theme). **Admin pages render with the `back` theme.** A theme declares its scopes in info.yml (`neo: { scope: [front, back] }`); no scope = all scopes. List them with `drush neo-scopes`.
 - **Tailwind is scope-isolated** — `@tailwind base` only emits the classes aggregated **for that scope**. A utility used only in a `front` library will **not exist** in the `back` build's CSS, and vice versa. This is the #1 cause of "my class does nothing": the class is real but the owning scope wasn't rebuilt (or you used it in the other scope).
-- **Two-step build** — `drush neo:build <scope>` (alias `neo`) regenerates `neo.json` (the manifest of entrypoints for that scope); Vite then compiles them to `dist/`. The npm CLI orchestrates both: it calls `drush neo <scope>` then runs Vite.
+- **Two-step build** — `drush neo:build <scope>` (alias `neo`) is **prepare**: it writes the four build artifacts — `neo.json`, `neo.tsconfig.json` and `phpstan.neon` at the project root, and `tailwind.neo.css` beside the scope's **primary file** (the CSS entrypoint that carries `@import "tailwindcss"`). Vite then compiles to `dist/`. The npm CLI orchestrates both: it calls `drush neo <scope>` then runs Vite. A scope with no primary file gets a `⚠ [neo] No primary CSS file in this scope …` warning and no `tailwind.neo.css`; the other three artifacts are still written.
 - **Generated** — `neo.json` is generated and git-ignored. **`neo.tsconfig.json` is generated but TRACKED**, so every build shows up as a diff. It is only the `include` list, and a single-scope build (`npm run build:front`) rewrites it for *that scope alone*, silently dropping the other scope's entries — run `npm run deploy` before committing it, or the back scope loses its files. `_neo.lock` is the dev-mode lock file.
 
 ## Step 0 — is the dev server running?
@@ -62,7 +62,7 @@ back to ES5 defaults and invents ~170 phantom errors — "Property 'includes' do
 codebase rather than a wrong `-p`. Bare `npx tsc --noEmit` resolves `tsconfig.json` and reports 0,
 so any error it does report is real.
 
-⚠ **`drush neo:build` is NOT the build.** It regenerates `neo.json` and stops, and its last line
+⚠ **`drush neo:build` is NOT the build.** It writes the four artifacts and stops, and its last line
 is `Prepare Success` — so it looks like a completed compile, `drush cr` afterwards looks like the
 finishing step, and the page still serves the old `dist/`. The tell is the mtime on
 `web/themes/<theme>/dist/front.css`: unchanged means nothing compiled. Only the npm commands
@@ -79,7 +79,7 @@ All prod builds are refused while a dev server is answering (see Step 0); `--for
 drush (manifest + lifecycle):
 
 - `drush neo:build:status` / `neo-status` — dev mode, dev scope, and a live probe of the dev server (`--format=json` for scripting). **Run this first.**
-- `drush neo:build [scope]` / `neo` — regenerate `neo.json` for a scope (default `front`). Lower-level; `npm start` calls this for you.
+- `drush neo:build [scope]` / `neo` — prepare a scope (default `front`): write `neo.json`, `neo.tsconfig.json`, `phpstan.neon` and `tailwind.neo.css`, and warn when the scope has no primary file (then no `tailwind.neo.css`). Lower-level; `npm start` calls this for you.
 - `drush neo:build:cc` / `neo-cc` — clear just the twig/render/page caches (lighter than full `drush cr`).
 - `drush neo:build:scopes` / `neo-scopes` — list scopes (`--format=json` for scripting).
 - `drush neo:build:install` / `neo-install` — (re)install `package.json` / `tsconfig.json` / `vite.config.ts`, add the DDEV vite port, **and aggregate every enabled module's `install/skills/*` into `.claude/skills/`**.
@@ -134,6 +134,29 @@ every variable. Needs a webdriver: `ddev add-on get ddev/ddev-selenium-standalon
   a known-clean site.
 - After opening anything animated, `neoWaitForAnimations()` before asserting.
 
+## Generated PHPStan configuration
+
+Prepare also writes the project's `phpstan.neon` (regenerated on every `drush neo <scope>`; never
+edit it by hand). What its `paths` cover — the **analysed extensions**:
+
+- every Neo extension (a module or theme with a `neo:` key or a Neo library), as before;
+- every **enabled** module or theme whose info file declares `package: Neo` (exact match) — so
+  `neo_build` itself and the PHP-only Neo packages (neo_settings, neo_twig, neo_font, …) are
+  analysed; a disabled one is not;
+- `modules/custom`, when it exists.
+
+The **exclusion rule** lists under `excludePaths` any extension nested inside an analysed path whose
+declared dependencies are not all on disk (PHPStan cannot resolve what it extends and refuses to
+ignore that); installed-but-disabled nested extensions stay analysed. `neo_build_entity_print` —
+the optional submodule that serves Neo's CSS-as-JS assets to `entity_print` in DEV mode, enabled by
+`drush updatedb` where `entity_print` is on — is the standing example: excluded wherever
+`entity_print` is absent. `vendor/mglaman/phpstan-drupal/extension.neon` is included only when
+`phpstan/extension-installer` is *not* installed.
+
+Run it as `vendor/bin/phpstan analyse --configuration=phpstan.neon <files>`. A site whose
+`phpstan.neon` predates this rule can show PHPStan's "This file is included multiple times" abort —
+re-run prepare (`drush neo front`) and the include is gone.
+
 ## Registering Tailwind components / theme config
 
 Extend Tailwind from a theme/module info.yml rather than a config file — see README "COMPONENTS" and "THEME":
@@ -164,4 +187,5 @@ After editing these, `drush cr` and rebuild the scope.
 - **Tests: the element is right there but interacting does nothing** — it is visible before it has finished opening, and Neo binds behaviour in the animation-completion callback (a modal binds its keyboard handlers there). Insert `neoWaitForAnimations()`. This failure is maximally misleading: the thing is on screen and simply ignores you.
 - **Tests: green run that proves nothing** — if `drupalInstall`/`drupalInstallNeo` fails, the browser stays pointed at the **original** site, so assertions happily pass against the dev site. Confirm the install actually succeeded before trusting a pass. Likewise a run with stale `dist/` tests the previous build.
 - **Tests refused: "Neo is in DEV mode"** — not an error to work around. In dev the page serves HMR output for one scope, not what ships. `npm run deploy`, then re-run.
+- **PHPStan aborts with "This file is included multiple times"** — the site's `phpstan.neon` was generated before the include rule and the site has `phpstan/extension-installer`. Re-run prepare (`drush neo front`); do not hand-edit the file.
 - **Committed `neo.json` / dev lock** — `neo.json` is generated and git-ignored; `neo.tsconfig.json` is generated but **tracked** (run `npm run deploy` before committing it so it carries every scope); `_neo.lock` means dev mode is on. Use `neo-dev-cleanup` before a production build/commit.
