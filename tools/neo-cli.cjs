@@ -297,10 +297,13 @@ async function runVite(scope, target) {
   // before this runs. NEO_SCOPE was exported here as well and read by nothing
   // on either side of the boundary.
   if (target === 'dev') {
-    // The dev server's own status is deliberately unread here: the everyday way
-    // a dev session ends is a signal, which must still fall through to the prod
-    // rebuild.
-    execAndShow(CONFIG.commands.vite);
+    const devServer = execAndShow(CONFIG.commands.vite);
+    // A signal exit is how a dev session normally ends - the watcher was quit -
+    // so it is not a failure and still falls through to the prod rebuild. A
+    // genuine non-zero status means the dev server could not start.
+    if (!succeeded(devServer) && !devServer.signal) {
+      return failure(scope, 'the dev server', devServer, false);
+    }
     return { failed: false };
   }
 
