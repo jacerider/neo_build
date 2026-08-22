@@ -1,5 +1,50 @@
 # Changelog
 
+## The build CLI owns its exit status — a build that used to pass may now fail
+
+The build CLI exited 0 whatever happened. Six build steps had their status discarded, the scope
+loop was never awaited, and the first scope's queued continuation called `process.exit(0)` before
+anything else could report otherwise. A failed compile therefore left a stale `dist/`, printed
+`All builds completed successfully`, and exited 0 — so `npm run deploy` in a script, a CI job or a
+`ddev exec` wrapper reported success for assets that were never compiled.
+
+Every **fatal step** now has its status read: the dev-mode toggle, prepare, the compile and the
+type check. The compile and the type check became separate children rather than one shell command,
+so a failure can name which of them failed. The run stops at the **first failing scope**, because a
+failure has already rewritten that scope's generated `neo.json` and `neo.tsconfig.json` and the
+remaining scopes would build on a known-bad footing. The success line prints only once every scope
+has succeeded, and the process exits with the failing step's own status when that is in 1-255, and
+1 otherwise.
+
+**This means a build that used to "pass" on your site may now fail. That is the fix, not a
+regression** — the failure was always there, and the only thing that changed is that you can see
+it. There is deliberately **no opt-out flag**: an escape hatch would preserve exactly the silent
+failure this removes. `--force` keeps its existing meaning and still only overrides the dev-server
+guards.
+
+The **failure report** names the scope, the step, and whether `dist/` was written. That last part
+matters: esbuild strips types without checking them, so the type check is the only type gate the
+stack has and it runs after the compile. A type check that fails on a successful compile means the
+compiled assets are good and only the types are wrong; reporting them stale would be its own bug.
+
+A **signal exit** is not a failure. Quitting the dev server with Ctrl-C still falls through to the
+production rebuild and exits 0, exactly as it always has. A dev server that cannot start — an
+occupied port — is a genuine failure, is reported as the dev server failing, and no longer triggers
+a full production rebuild nobody asked for.
+
+**Build cleanup** split at the seam that matters. It always unlocks, so a failed build no longer
+leaves a checkout that cannot commit: `_neo.lock` and the generated pre-commit hook are removed on
+every path. The **compiled-versions stamp** now happens only when the build succeeded. That record
+is committed and shared with the team, and a broken build used to write it anyway — telling every
+other developer that `dist/` was built from versions it was not. `drush neo-dev-cleanup` gains
+`--skip-stamp` for the same split by hand; typed with no option it behaves exactly as before.
+
+The **browser-test guard** stopped reading an unreadable status as a clean one. The Drupal-side
+status was read through a helper that returned an empty object when the command *failed*,
+indistinguishable from a command that succeeded and reported nothing — so a broken status waved the
+run through the guard that exists to stop it. A test run is now refused when the status cannot be
+read, naming that as the reason. A status that was read and is simply empty behaves as before.
+
 ## The scope set closes — BREAKING for the scope plugin type and the inline event's accessor
 
 The build's scope set had two definitions that had to agree. A YAML plugin type — a manager, a

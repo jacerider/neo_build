@@ -121,6 +121,48 @@ Production builds refuse to run while a dev server is answering on the vite
 port — the running dev session already serves changes via HMR, and a prod
 build would silently disconnect it. Pass `--force` to override.
 
+Every build step's status is read, and a prod build exits non-zero when a fatal
+step fails. The fatal steps are the dev-mode toggle, prepare, the compile and
+the type check. The run stops at the first failing scope: a failure has already
+rewritten that scope's generated `neo.json` and `neo.tsconfig.json`, so the
+remaining scopes would build on a known-bad footing. The success line prints
+only once every scope has succeeded.
+
+The failure report names the scope, the failing step, and whether `dist/` was
+written:
+
+```
+✘ [neo] Build failed in the front scope: the type check (exit status 2).
+[neo] dist/ was written - the compiled assets are good; the type check is a
+separate gate.
+```
+
+That last line matters. esbuild strips types without checking them, so the type
+check is the only type gate the stack has, and it runs after the compile. A type
+check that fails on a successful compile means the assets in `dist/` are good —
+reporting them stale when they are not would be its own bug.
+
+The exit status is the failing step's own status when that is in the range
+1-255, and 1 otherwise — a signal-terminated fatal step, or a status that could
+not be read.
+
+Quitting the dev server is a **signal exit**, not a failure. It still falls
+through to the production rebuild and exits 0, exactly as it always has. A dev
+server that cannot start — an occupied port, say — is a genuine failure: it is
+reported as the dev server failing, and no rebuild follows it.
+
+Build cleanup runs on every path, so a failed build still unlocks and `_neo.lock`
+and the generated pre-commit hook are removed either way. The compiled-versions
+stamp is the half that does not run on a failure: that record is committed and
+shared with the team, and it must never claim `dist/` was built from versions it
+was not. The same split is available by hand:
+
+```shell
+drush neo-dev-cleanup --skip-stamp
+```
+
+There is deliberately no flag that restores the old always-exit-0 behaviour.
+
 ### The generated stylesheet
 
 Prepare writes `tailwind.neo.css` beside each scope's primary CSS file — the
@@ -194,6 +236,12 @@ Tests are refused outright while a dev server is answering: in dev mode the
 page loads HMR output for a single scope instead of the compiled assets that
 ship, so the run would not be testing what deploys. Stop the dev session first,
 or pass `--force` to test against the dev server deliberately.
+
+Tests are also refused when the Drupal-side status cannot be read at all. A
+status command that *failed* is not the same as one that succeeded and reported
+nothing: an unreadable status cannot say whether dev mode is on or a dev server
+is up, and treating it as clean would wave the run straight past the guard that
+exists to stop it. A status that was read and is simply empty still passes.
 
 The first run installs Drupal core's own JS dependencies (yarn, activated
 through corepack) and writes `web/core/.env`, which core's runner requires to

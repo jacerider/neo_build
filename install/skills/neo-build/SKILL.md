@@ -76,6 +76,14 @@ below write `dist/`.
 
 All prod builds are refused while a dev server is answering (see Step 0); `--force` overrides.
 
+⚠ **A prod build's exit status is now real — check it.** Every fatal step's status is read (the dev-mode toggle, prepare, the compile, the type check), the run stops at the **first failing scope**, and the process exits non-zero. `All builds completed successfully` prints only when every scope actually succeeded, so its presence is now evidence rather than decoration. Older builds printed it and exited 0 no matter what happened; **do not carry that assumption into a green run on an older checkout.**
+
+The failure report names the scope, the step, and whether `dist/` was written — e.g. `✘ [neo] Build failed in the front scope: the type check (exit status 2).` followed by `dist/ was written`. The type check runs **after** the compile and is the only type gate the stack has (esbuild strips types without checking them), so a type-check failure on a good compile means `dist/` is fine and only the types are wrong. The exit status is the failing step's own when it is 1-255, and 1 otherwise.
+
+Quitting the dev server is a **signal exit**, not a failure: it still falls through to the full prod rebuild and exits 0. A dev server that *cannot start* (occupied port) is a real failure and no rebuild follows it.
+
+Build cleanup runs on every path, so a failed build still unlocks (`_neo.lock` and the pre-commit hook go either way). The **compiled-versions stamp** does not run on a failure — that record is committed and shared, and must not claim `dist/` was built from versions it was not. There is no flag that restores the old always-exit-0 behaviour.
+
 **Base-layer Tailwind data is no longer accepted.** `addTailwindBase()`, `getTailwindBase()` and `clearTailwindBase()` are gone from `NeoBuildCollection`, and the stylesheet has no base layer to route to. `@layer base` reached none of the generated stylesheets on any site: `neo_font`, the only caller anywhere, had always passed an empty array. A subscriber that needs base-level declarations puts custom properties in the theme (`addTailwindThemeItem()`) and rules in components (`addTailwindComponents()`). This removed one of the eight collection signatures the preparer work published for sibling subscribers — announced rather than silent, and `NeoBuildCollectionContractTest` now pins seven.
 
 drush (manifest + lifecycle):
@@ -87,7 +95,7 @@ drush (manifest + lifecycle):
 - `drush neo:build:install` / `neo-install` — (re)install `package.json` / `tsconfig.json` / `vite.config.ts`, add the DDEV vite port, **and aggregate every enabled module's `install/skills/*` into `.claude/skills/`**.
 - `drush neo:build:dev:enable` / `neo-dev-enable` — turn on dev tracking (installs a git pre-commit hook + writes `_neo.lock` so dev/HMR state isn't committed).
 - `drush neo:build:dev:disable` / `neo-dev-disable` — turn it off.
-- `drush neo:build:dev:cleanup` / `neo-dev-cleanup` — remove the hook + lock and refresh compiled version info.
+- `drush neo:build:dev:cleanup` / `neo-dev-cleanup` — remove the hook + lock and refresh compiled version info. `--skip-stamp` unlocks **without** the compiled-versions stamp; the build passes it automatically when a scope failed.
 - `drush neo:template` / `neo-template` — scaffold a `*.html.twig` template into a theme from `neo_base`'s `.example` templates.
 
 ## Dev server vs `dist/`
@@ -188,6 +196,8 @@ After editing these, `drush cr` and rebuild the scope.
 - **Tests: a keypress does nothing** — `browser.keys()` is deprecated and silently sends nothing under W3C (which DDEV's selenium add-on enables). Use `neoPressKey()`. The Actions API via `.perform()` is the documented replacement but does not deliver here either.
 - **Tests: the element is right there but interacting does nothing** — it is visible before it has finished opening, and Neo binds behaviour in the animation-completion callback (a modal binds its keyboard handlers there). Insert `neoWaitForAnimations()`. This failure is maximally misleading: the thing is on screen and simply ignores you.
 - **Tests: green run that proves nothing** — if `drupalInstall`/`drupalInstallNeo` fails, the browser stays pointed at the **original** site, so assertions happily pass against the dev site. Confirm the install actually succeeded before trusting a pass. Likewise a run with stale `dist/` tests the previous build.
+- **Build: a green run that proves nothing (older checkouts)** — before this behaviour landed, the CLI printed `All builds completed successfully` and exited 0 even when the compile or the type check had failed, leaving a stale `dist/`. On a current checkout the success line and the exit status are both trustworthy; on an older one, confirm the bundle's mtime rather than the banner.
+- **Tests refused: "the Neo status could not be read"** — the drush status command itself failed, which is not the same as it reporting nothing. Fix the Drupal side (the message names the command); `--force` skips the guards if you truly mean to.
 - **Tests refused: "Neo is in DEV mode"** — not an error to work around. In dev the page serves HMR output for one scope, not what ships. `npm run deploy`, then re-run.
 - **PHPStan aborts with "This file is included multiple times"** — the site's `phpstan.neon` was generated before the include rule and the site has `phpstan/extension-installer`. Re-run prepare (`drush neo front`); do not hand-edit the file.
 - **Committed `neo.json` / dev lock** — `neo.json` is generated and git-ignored; `neo.tsconfig.json` is generated but **tracked** (run `npm run deploy` before committing it so it carries every scope); `_neo.lock` means dev mode is on. Use `neo-dev-cleanup` before a production build/commit.
