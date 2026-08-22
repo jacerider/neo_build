@@ -88,6 +88,23 @@ class NeoInlineCssGeneratorTest extends KernelTestBase {
   }
 
   /**
+   * The persisted tag carries the module's own name.
+   *
+   * The only literal assertion in this file, and the one the rename makes
+   * possible. Every other tag assertion reads the constant, so the value can
+   * move without touching them; this one is here to catch it moving back.
+   * It names the new tag and not the old one on purpose — the predecessor
+   * suite's name is supposed to appear nowhere in the module, tests included.
+   */
+  public function testPersistsTheRenamedTagLiteral(): void {
+    $this->generator()->generate();
+
+    $this->assertContains('neo_build:build', $this->monitoredTags());
+    $this->assertSame('neo_build:build', Preparer::BUILD_CACHE_TAG);
+    $this->assertSame('neo_build:build:dev', Preparer::DEV_BUILD_CACHE_TAG);
+  }
+
+  /**
    * Invalidating the build cache tag regenerates the files on terminate.
    */
   public function testRegeneratesWhenTheBuildCacheTagIsInvalidated(): void {

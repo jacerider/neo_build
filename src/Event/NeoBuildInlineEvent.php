@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\neo_build\Event;
 
 use Drupal\Component\EventDispatcher\Event;
+use Drupal\neo_build\Preparer;
 
 /**
  * Event that is fired to allow for custom CSS to be added.
@@ -55,10 +56,10 @@ class NeoBuildInlineEvent extends Event {
     $this->devMode = $devMode;
     $this->data = [];
     $this->cacheTags = [
-      'exo_build:build',
+      Preparer::BUILD_CACHE_TAG,
     ];
     if ($devMode) {
-      $this->cacheTags[] = 'exo_build:build:dev';
+      $this->cacheTags[] = Preparer::DEV_BUILD_CACHE_TAG;
     }
   }
 

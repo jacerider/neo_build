@@ -53,10 +53,13 @@ class Preparer {
 
   /**
    * The cache tag a prepare invalidates.
-   *
-   * The name predates the module's rename; nothing else is named for it yet.
    */
-  public const BUILD_CACHE_TAG = 'exo_build:build';
+  public const BUILD_CACHE_TAG = 'neo_build:build';
+
+  /**
+   * The cache tag a prepare invalidates additionally while in DEV mode.
+   */
+  public const DEV_BUILD_CACHE_TAG = 'neo_build:build:dev';
 
   /**
    * Constructs a Preparer.

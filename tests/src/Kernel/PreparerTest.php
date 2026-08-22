@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\neo_build\Kernel;
 
+use Drupal\Core\Cache\CacheTagsInvalidatorInterface;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\neo_build\Preparer;
 use Drupal\neo_build\PrepareNotice;
@@ -98,6 +99,33 @@ class PreparerTest extends KernelTestBase {
     };
     $this->container->set('neo_build.project_root', $projectRoot);
     return $this->container->get('neo_build.preparer');
+  }
+
+  /**
+   * Swaps in a recording invalidator and returns it.
+   *
+   * Installed before the preparer is fetched, the same way the project root is.
+   */
+  protected function recordingInvalidator(): CacheTagsInvalidatorInterface {
+    $spy = new class() implements CacheTagsInvalidatorInterface {
+
+      /**
+       * Every tag the preparer invalidated.
+       *
+       * @var string[]
+       */
+      public array $invalidated = [];
+
+      /**
+       * {@inheritdoc}
+       */
+      public function invalidateTags(array $tags): void {
+        $this->invalidated = array_merge($this->invalidated, $tags);
+      }
+
+    };
+    $this->container->set('cache_tags.invalidator', $spy);
+    return $spy;
   }
 
   /**
@@ -217,6 +245,22 @@ class PreparerTest extends KernelTestBase {
     $this->assertNull($this->neoJson()['primaryFile']);
     $written = array_filter($result->getArtifacts(), fn (string $path) => str_ends_with($path, 'tailwind.neo.css'));
     $this->assertSame([], $written);
+  }
+
+  /**
+   * A prepare invalidates the build cache tag.
+   *
+   * The link the inline CSS regenerates on: prepare invalidates, the generator
+   * is watching, the files are rewritten. Read through the constant, so a
+   * rename of the tag moves this assertion with it.
+   */
+  public function testInvalidatesTheBuildCacheTagOnPrepare(): void {
+    $this->installTheme();
+    $invalidator = $this->recordingInvalidator();
+
+    $this->preparer()->prepare('front');
+
+    $this->assertContains(Preparer::BUILD_CACHE_TAG, $invalidator->invalidated);
   }
 
 }
