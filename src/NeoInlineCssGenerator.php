@@ -59,11 +59,11 @@ class NeoInlineCssGenerator implements CacheTagsInvalidatorInterface, EventSubsc
     }
 
     $allTags = [];
-    foreach (['front', 'back'] as $scope) {
-      $event = new NeoBuildInlineEvent($scope, $isDevMode);
+    foreach (Scope::cases() as $scope) {
+      $event = new NeoBuildInlineEvent($scope->value, $isDevMode);
       $this->eventDispatcher->dispatch($event, NeoBuildInlineEvent::EVENT_NAME);
       $allTags = array_merge($allTags, $event->getCacheTags());
-      $this->fileSystem->saveData($event->getCss(), $directory . '/' . $scope . '.css', FileExists::Replace);
+      $this->fileSystem->saveData($event->getCss(), $directory . '/' . $scope->value . '.css', FileExists::Replace);
     }
 
     // Store monitored tags so invalidateTags() can detect future changes.
@@ -82,8 +82,11 @@ class NeoInlineCssGenerator implements CacheTagsInvalidatorInterface, EventSubsc
   public function ensureGenerated(): void {
     if (!$this->verified) {
       $this->verified = TRUE;
-      if (!file_exists('public://neo-build/front.css') || !file_exists('public://neo-build/back.css')) {
-        $this->generate();
+      foreach (Scope::cases() as $scope) {
+        if (!file_exists('public://neo-build/' . $scope->value . '.css')) {
+          $this->generate();
+          return;
+        }
       }
     }
   }

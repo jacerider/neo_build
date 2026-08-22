@@ -7,6 +7,7 @@ namespace Drupal\Tests\neo_build\Kernel;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\neo_build\NeoInlineCssGenerator;
 use Drupal\neo_build\Preparer;
+use Drupal\neo_build\Scope;
 use Drupal\neo_build_test\EventSubscriber\NeoBuildTestInlineSubscriber;
 use PHPUnit\Framework\Attributes\Group;
 use Symfony\Component\HttpFoundation\Request;
@@ -109,16 +110,16 @@ class NeoInlineCssGeneratorTest extends KernelTestBase {
    */
   public function testRegeneratesWhenTheBuildCacheTagIsInvalidated(): void {
     $this->generator()->generate();
-    foreach (['front', 'back'] as $scope) {
-      $this->container->get('file_system')->delete($this->cssPath($scope));
-      $this->assertFileDoesNotExist($this->cssPath($scope));
+    foreach (Scope::cases() as $scope) {
+      $this->container->get('file_system')->delete($this->cssPath($scope->value));
+      $this->assertFileDoesNotExist($this->cssPath($scope->value));
     }
 
     $this->invalidate([Preparer::BUILD_CACHE_TAG]);
     $this->terminate();
 
-    foreach (['front', 'back'] as $scope) {
-      $this->assertFileExists($this->cssPath($scope));
+    foreach (Scope::cases() as $scope) {
+      $this->assertFileExists($this->cssPath($scope->value));
     }
   }
 
@@ -127,15 +128,63 @@ class NeoInlineCssGeneratorTest extends KernelTestBase {
    */
   public function testDoesNotRegenerateForAnUnrelatedTag(): void {
     $this->generator()->generate();
-    foreach (['front', 'back'] as $scope) {
-      $this->container->get('file_system')->delete($this->cssPath($scope));
+    foreach (Scope::cases() as $scope) {
+      $this->container->get('file_system')->delete($this->cssPath($scope->value));
     }
 
     $this->invalidate(['neo_build_test:not_monitored']);
     $this->terminate();
 
-    foreach (['front', 'back'] as $scope) {
-      $this->assertFileDoesNotExist($this->cssPath($scope));
+    foreach (Scope::cases() as $scope) {
+      $this->assertFileDoesNotExist($this->cssPath($scope->value));
+    }
+  }
+
+  /**
+   * Exactly one stylesheet is written, per scope, and nothing else.
+   *
+   * The weaker assertion this replaces looked up two files by name and would
+   * have stayed green while a third scope produced nothing at all. Counting
+   * the directory against the case list is what makes a silent scope fail.
+   */
+  public function testWritesExactlyOneStylesheetPerScope(): void {
+    $this->generator()->generate();
+
+    $expected = [];
+    foreach (Scope::cases() as $scope) {
+      $expected[] = $scope->value . '.css';
+      $this->assertNotSame('', (string) file_get_contents($this->cssPath($scope->value)));
+    }
+    $written = array_values(array_filter(
+      (array) scandir('public://neo-build'),
+      static fn (string $file): bool => str_ends_with($file, '.css'),
+    ));
+
+    $this->assertEqualsCanonicalizing($expected, $written);
+    $this->assertCount(count(Scope::cases()), $written);
+  }
+
+  /**
+   * The existence check covers every scope, not two files by name.
+   */
+  public function testEnsureGeneratedRestoresEveryScopesStylesheet(): void {
+    $this->generator()->generate();
+    foreach (Scope::cases() as $scope) {
+      $this->container->get('file_system')->delete($this->cssPath($scope->value));
+    }
+
+    // A fresh service: `ensureGenerated()` only looks once per request, and
+    // the container's instance has already looked during the generate above.
+    $generator = new NeoInlineCssGenerator(
+      $this->container->get('event_dispatcher'),
+      $this->container->get('file_system'),
+      $this->container->get('state'),
+      $this->container->get('neo_build'),
+    );
+    $generator->ensureGenerated();
+
+    foreach (Scope::cases() as $scope) {
+      $this->assertFileExists($this->cssPath($scope->value));
     }
   }
 
@@ -154,9 +203,9 @@ class NeoInlineCssGeneratorTest extends KernelTestBase {
   public function testWritesSubscriberCssValueIntoTheScopesFile(): void {
     $this->generator()->generate();
 
-    foreach (['front', 'back'] as $scope) {
-      $css = (string) file_get_contents($this->cssPath($scope));
-      $this->assertStringContainsString(NeoBuildTestInlineSubscriber::CSS_PROPERTY . ': ' . $scope . ';', $css);
+    foreach (Scope::cases() as $scope) {
+      $css = (string) file_get_contents($this->cssPath($scope->value));
+      $this->assertStringContainsString(NeoBuildTestInlineSubscriber::CSS_PROPERTY . ': ' . $scope->value . ';', $css);
     }
   }
 

@@ -61,7 +61,9 @@ class NeoExtension {
     }
     // Always set scope.
     if (!isset($info['neo']['scope'])) {
-      $info['neo']['scope'] = $this->getType() === 'module' ? ['front', 'back'] : ['front'];
+      $info['neo']['scope'] = $this->getType() === 'module'
+        ? array_map(static fn (Scope $scope): string => $scope->value, Scope::cases())
+        : [Scope::Front->value];
     }
     // Make sure scope is array.
     if (!is_array($info['neo']['scope'])) {
