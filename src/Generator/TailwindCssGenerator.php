@@ -58,13 +58,12 @@ final class TailwindCssGenerator implements ArtifactGeneratorInterface {
         $css->addCssVariable($key, $value);
       }
     }
+    // Component data is rules only. A `--` key here would have to be emitted
+    // as a bare declaration inside `@layer components`, which is not valid
+    // CSS; custom properties belong in the theme, which the loop above routes
+    // to the stylesheet's `@theme` block.
     foreach ($collection->getTailwindComponents() as $key => $value) {
-      if (str_starts_with($key, '--') && is_string($value)) {
-        $css->addCssVariable($key, $value, 'components');
-      }
-      else {
-        $css->addRule($key, $value, 'components');
-      }
+      $css->addRule($key, $value, 'components');
     }
     foreach ($collection->getTailwindUtilities() as $key => $value) {
       $css->addUtility($key, $value);

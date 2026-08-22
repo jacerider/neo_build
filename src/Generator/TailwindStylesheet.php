@@ -69,6 +69,16 @@ class TailwindStylesheet {
   private const APPLY_WEIGHT = 1000;
 
   /**
+   * The only layer this stylesheet emits.
+   *
+   * Tailwind declares its own layer order, and of its layers only `components`
+   * carries anything here. Everything else a caller adds is a top-level rule:
+   * `@utility` in particular has to sit outside any layer for Tailwind 4 to
+   * register it.
+   */
+  private const LAYER = 'components';
+
+  /**
    * List of @import statements.
    *
    * @var array
@@ -90,14 +100,11 @@ class TailwindStylesheet {
   private array $cssVariables = [];
 
   /**
-   * List of CSS rules organized by layers.
+   * Rules belonging to the components layer.
    *
    * @var array
    */
-  private array $layers = [
-    'components' => ['rules' => []],
-    'utilities' => ['rules' => []],
-  ];
+  private array $components = [];
 
   /**
    * List of CSS rules without layers (for backward compatibility).
@@ -112,13 +119,6 @@ class TailwindStylesheet {
    * @var array
    */
   private array $variants = [];
-
-  /**
-   * Custom layers defined by the user.
-   *
-   * @var array
-   */
-  private array $customLayers = [];
 
   /**
    * Convert camelCase property names to kebab-case.
@@ -235,30 +235,13 @@ class TailwindStylesheet {
    *   The variable name (should start with --).
    * @param string $value
    *   The variable value.
-   * @param string $layer
-   *   The layer to add the variable to.
    */
-  public function addCssVariable(string $name, string $value, string $layer = 'theme'): self {
+  public function addCssVariable(string $name, string $value): self {
     // Ensure the variable name starts with --.
     if (!str_starts_with($name, '--')) {
       $name = '--' . $name;
     }
-    $this->cssVariables[$layer][$name] = $value;
-    return $this;
-  }
-
-  /**
-   * Add a custom layer definition.
-   *
-   * @param string $layer
-   *   The layer name to add.
-   */
-  public function addLayer(string $layer): self {
-    if (!isset($this->layers[$layer]) && !in_array($layer, $this->customLayers)) {
-      $this->customLayers[] = $layer;
-      $this->layers[$layer] = ['rules' => []];
-    }
-
+    $this->cssVariables[$name] = $value;
     return $this;
   }
 
@@ -344,7 +327,8 @@ class TailwindStylesheet {
    *   Associative array of CSS properties (camelCase will be converted to
    *   kebab-case).
    * @param string|null $layer
-   *   Optional CSS layer ('base', 'components', 'utilities', or custom layer).
+   *   The components layer, or NULL for a top-level rule. The only layer this
+   *   class knows; anything else is a caller error.
    */
   public function addRule(string $selector, array $properties, ?string $layer = NULL): self {
     // Process nested properties (this also handles camelCase conversion).
@@ -373,7 +357,11 @@ class TailwindStylesheet {
    * @param array $rule
    *   The rule array with selector, properties, and possibly nestedRules.
    * @param string|null $layer
-   *   Optional CSS layer.
+   *   The components layer, or NULL for a top-level rule.
+   *
+   * @throws \InvalidArgumentException
+   *   If a layer other than the components layer is named. Routing it to the
+   *   top level instead would silently move the rule out of its layer.
    */
   private function addRuleToStorage(array $rule, ?string $layer = NULL): void {
     // Ensure nestedRules key exists for consistency.
@@ -381,17 +369,20 @@ class TailwindStylesheet {
       $rule['nestedRules'] = [];
     }
 
-    if ($layer) {
-      // Ensure the layer exists.
-      if (!isset($this->layers[$layer])) {
-        $this->addLayer($layer);
-      }
-
-      $this->layers[$layer]['rules'][] = $rule;
-    }
-    else {
+    if ($layer === NULL) {
       $this->rules[] = $rule;
+      return;
     }
+
+    if ($layer !== self::LAYER) {
+      throw new \InvalidArgumentException(sprintf(
+        'Unknown layer "%s": this stylesheet emits only "%s".',
+        $layer,
+        self::LAYER,
+      ));
+    }
+
+    $this->components[] = $rule;
   }
 
   /**
@@ -475,20 +466,21 @@ class TailwindStylesheet {
   /**
    * Format theme variables as @theme block.
    *
+   * The only place this class puts a custom property. A bare declaration
+   * inside a `@layer` block is not valid CSS, so there is nowhere else for
+   * one to go.
+   *
    * @return string
    *   The formatted @theme block.
    */
-  private function formatVariables(string $layer = 'theme'): string {
-    if (empty($this->cssVariables[$layer])) {
+  private function formatVariables(): string {
+    if (empty($this->cssVariables)) {
       return '';
     }
 
-    $css = '';
-    if ($layer === 'theme') {
-      $css = "@theme {\n";
-    }
+    $css = "@theme {\n";
 
-    foreach ($this->cssVariables[$layer] as $name => $value) {
+    foreach ($this->cssVariables as $name => $value) {
       $css .= self::INDENT . $name . ': ' . $value;
 
       // Add semicolon if not present.
@@ -498,29 +490,27 @@ class TailwindStylesheet {
       $css .= "\n";
     }
 
-    if ($layer === 'theme') {
-      $css .= "}\n";
-    }
+    $css .= "}\n";
 
     return $css;
   }
 
   /**
-   * Format rules within a layer.
+   * Format the rules of a layer, in comparator order.
    *
-   * @param array $layerData
-   *   The layer data containing the layer's rules.
+   * @param array $rules
+   *   The layer's rules.
    * @param string $baseIndent
    *   The base indentation string.
    *
    * @return string
    *   The formatted CSS string for the layer.
    */
-  private function formatLayerRules(array $layerData, string $baseIndent = ''): string {
+  private function formatLayerRules(array $rules, string $baseIndent = ''): string {
     $css = '';
 
-    uasort($layerData['rules'], fn($a, $b) => $this->sort($a, $b));
-    foreach ($layerData['rules'] as $rule) {
+    uasort($rules, fn($a, $b) => $this->sort($a, $b));
+    foreach ($rules as $rule) {
       $css .= $this->formatRule($rule, $baseIndent);
     }
 
@@ -551,7 +541,7 @@ class TailwindStylesheet {
 
     // Add theme variables.
     if (!empty($this->cssVariables)) {
-      $css .= $this->formatVariables('theme');
+      $css .= $this->formatVariables();
 
       // Add blank line after theme variables if there are other rules.
       if ($this->hasContentAfterTheme()) {
@@ -559,33 +549,17 @@ class TailwindStylesheet {
       }
     }
 
-    // Add layer declarations if we have layered rules.
-    if ($this->hasLayeredRules() && FALSE) {
-      $layerNames = array_merge(['components', 'utilities'], $this->customLayers);
-      $activeLayers = array_filter($layerNames, fn($layer) =>
-        !empty($this->layers[$layer]['rules'])
-      );
-
-      if (!empty($activeLayers)) {
-        $css .= '@layer ' . implode(', ', $activeLayers) . ";\n\n";
-      }
-    }
-
-    // Add backward-compatible rules (without layers).
+    // Add top-level rules, unsorted, in insertion order. Every @utility lands
+    // here: Tailwind 4 will not register one inside a layer.
     foreach ($this->rules as $rule) {
       $css .= $this->formatRule($rule);
     }
 
-    // Add layered rules in the correct order.
-    $layerOrder = array_merge(['components', 'utilities'], $this->customLayers);
-
-    foreach ($layerOrder as $layerName) {
-      if (isset($this->layers[$layerName]) && !empty($this->layers[$layerName]['rules'])) {
-        $css .= "@layer {$layerName} {\n";
-        $css .= $this->formatVariables($layerName);
-        $css .= $this->formatLayerRules($this->layers[$layerName], self::INDENT);
-        $css .= "}\n\n";
-      }
+    // Add the components layer.
+    if (!empty($this->components)) {
+      $css .= '@layer ' . self::LAYER . " {\n";
+      $css .= $this->formatLayerRules($this->components, self::INDENT);
+      $css .= "}\n\n";
     }
 
     if (!empty($this->variants)) {
@@ -655,12 +629,7 @@ class TailwindStylesheet {
    *   TRUE if there are layered rules, FALSE otherwise.
    */
   private function hasLayeredRules(): bool {
-    foreach ($this->layers as $layerData) {
-      if (!empty($layerData['rules'])) {
-        return TRUE;
-      }
-    }
-    return FALSE;
+    return !empty($this->components);
   }
 
 }

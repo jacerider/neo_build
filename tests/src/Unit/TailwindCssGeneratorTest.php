@@ -54,7 +54,7 @@ class TailwindCssGeneratorTest extends UnitTestCase {
     $collection->addTailwindSource('front:Files', 'themes/front/src/**/*.twig');
     $collection->addTailwindThemeItem('--color-brand', 'red');
     $collection->addTailwindTheme(['extend' => ['colors' => ['brand' => 'var(--color-brand)']]]);
-    $collection->addTailwindComponents(['.card' => ['padding' => '1rem'], '--card-pad' => '2rem']);
+    $collection->addTailwindComponents(['.card' => ['padding' => '1rem']]);
     $collection->addTailwindUtility('.text-balance', ['text-wrap' => 'balance']);
     $collection->addTailwindVariants(['hocus' => ['&:hover', '&:focus']]);
     return $collection;
@@ -78,7 +78,6 @@ class TailwindCssGeneratorTest extends UnitTestCase {
     $css->addSources(['/var/www/html/web/themes/front/src/**/*.twig']);
     $css->addCssVariable('--color-brand', 'red');
     $css->addRule('.card', ['padding' => '1rem'], 'components');
-    $css->addCssVariable('--card-pad', '2rem', 'components');
     $css->addUtility('.text-balance', ['text-wrap' => 'balance']);
     $css->addVariant('hocus', ['&:hover', '&:focus']);
     $this->assertSame(self::HEADER . $css->toCss(), $artifact->getContent());
@@ -92,7 +91,7 @@ class TailwindCssGeneratorTest extends UnitTestCase {
 
     $content = (new TailwindCssGenerator())->generate($collection)->getContent();
 
-    foreach (['--color-brand', '--card-pad', '.card', 'text-balance', 'hocus'] as $needle) {
+    foreach (['--color-brand', '.card', 'text-balance', 'hocus'] as $needle) {
       $this->assertStringContainsString($needle, $content);
     }
     $this->assertSame(['neo:base' => 'modules/contrib/neo/src/css/base.css'], $collection->getTailwindImports());
@@ -101,6 +100,35 @@ class TailwindCssGeneratorTest extends UnitTestCase {
     $this->assertArrayHasKey('.card', $collection->getTailwindComponents());
     $this->assertArrayHasKey('.text-balance', $collection->getTailwindUtilities());
     $this->assertArrayHasKey('hocus', $collection->getTailwindVariants());
+  }
+
+  /**
+   * The components layer holds rules only, never a bare declaration.
+   *
+   * A custom property routed into a layer would be emitted at the layer's own
+   * indentation, outside any rule — `@layer components { --card-pad: 2rem; }`,
+   * which is not valid CSS. The generator no longer has a branch that can do
+   * it: `--` keys reach the stylesheet through the theme loop and land in
+   * `@theme`, and everything in component data becomes a rule.
+   *
+   * The assertion is on indentation because that is what distinguishes the two
+   * cases: inside the block, a rule's selector opens at one level and its
+   * declarations sit at two, so a declaration at one level is a bare one.
+   */
+  public function testEmitsNoBareDeclarationInsideTheComponentsLayer(): void {
+    $content = (new TailwindCssGenerator())->generate($this->populated())->getContent();
+
+    $open = strpos($content, "@layer components {\n");
+    $this->assertNotFalse($open, 'the artifact has a components layer to check');
+    $block = substr($content, $open, strpos($content, "\n}\n", $open) - $open);
+
+    foreach (explode("\n", $block) as $line) {
+      $this->assertDoesNotMatchRegularExpression(
+        '/^  [^ }].*:.*;$/',
+        $line,
+        'a declaration sits directly inside @layer components: ' . $line,
+      );
+    }
   }
 
   /**
