@@ -1,0 +1,5 @@
+name: Neo Build Stan Dormant Test
+type: module
+description: 'A package: Neo module that is on disk but never enabled. The resolver test proves it is not analysed.'
+package: Neo
+core_version_requirement: ^10.3 || ^11

@@ -13,5 +13,6 @@ services:
       - '@library.discovery'
       - '@extension.list.neo'
       - '@twig'
+      - '@neo_build.analysed_extension_resolver'
     tags:
       - { name: drush.command }

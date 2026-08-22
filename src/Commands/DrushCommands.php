@@ -8,11 +8,9 @@ use Consolidation\OutputFormatters\StructuredData\PropertyList;
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Component\Utility\NestedArray;
-use Drupal\Core\Asset\LibraryDiscovery;
-use Drupal\Core\Asset\LibraryDiscoveryCollector;
-use Drupal\neo_build\NeoBuild;
 use Drupal\Core\Asset\LibraryDiscoveryInterface;
 use Drupal\Core\Cache\Cache;
+use Drupal\Core\Cache\CacheCollector;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\ThemeExtensionList;
@@ -20,6 +18,9 @@ use Drupal\Core\Extension\ThemeHandlerInterface;
 use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Template\TwigEnvironment;
+use Drupal\neo_build\AnalysedExtensionResolver;
+use Drupal\neo_build\Generator\PhpstanGenerator;
+use Drupal\neo_build\NeoBuild;
 use Drupal\neo_build\NeoBuildCollection;
 use Drupal\neo_build\NeoExtensionList;
 use Drush\Commands\DrushCommands as CoreCommands;
@@ -55,6 +56,7 @@ class DrushCommands extends CoreCommands {
     private readonly LibraryDiscoveryInterface $libraryDiscovery,
     private readonly NeoExtensionList $neoExtensionList,
     private readonly TwigEnvironment $twig,
+    private readonly AnalysedExtensionResolver $analysedExtensionResolver,
   ) {
     parent::__construct();
   }
@@ -90,15 +92,7 @@ class DrushCommands extends CoreCommands {
     // Example: web/.
     $docRoot = $this->getDocRoot();
 
-    if ($this->libraryDiscovery instanceof LibraryDiscoveryCollector) {
-      $this->libraryDiscovery->clear();
-    }
-    elseif ($this->libraryDiscovery instanceof LibraryDiscovery) {
-      $this->libraryDiscovery->clearCachedDefinitions();
-    }
-    else {
-      throw new \Exception('Library discovery service is not supported.');
-    }
+    $this->clearLibraryDefinitions();
     NeoBuild::preventAlter();
 
     $collection = new NeoBuildCollection(
@@ -113,10 +107,10 @@ class DrushCommands extends CoreCommands {
     );
     $collection->setScope($scope);
 
-    $extensions = $this->neoExtensionList->all();
-    foreach ($extensions as $extension) {
-      $collection->addStanPath($extension);
-    }
+    // Resolve the analysed extensions before the scoped call below: the
+    // resolver asks the Neo extension list un-scoped, and that has to be the
+    // first call in the process.
+    $analysedExtensions = $this->analysedExtensionResolver->resolve();
 
     $scopedExtensions = $this->neoExtensionList->all([$scope]);
     foreach ($scopedExtensions as $extension) {
@@ -132,23 +126,47 @@ class DrushCommands extends CoreCommands {
     $this->eventDispatcher->dispatch($event, NeoBuildEvent::EVENT_NAME);
 
     NeoBuild::preventAlter(FALSE);
-    if ($this->libraryDiscovery instanceof LibraryDiscoveryCollector) {
-      $this->libraryDiscovery->clear();
-    }
-    elseif ($this->libraryDiscovery instanceof LibraryDiscovery) {
-      $this->libraryDiscovery->clearCachedDefinitions();
-    }
+    $this->clearLibraryDefinitions();
 
     $this->buildTailwindCss($collection);
 
     $this->fileSystem->saveData($collection->toNeoJson(), $root . '/neo.json', FileExists::Replace);
     $this->fileSystem->saveData($collection->toTsJson(), $root . '/neo.tsconfig.json', FileExists::Replace);
-    $this->fileSystem->saveData($collection->toStanYaml(), $root . '/phpstan.neon', FileExists::Replace);
+    $phpstan = new PhpstanGenerator($analysedExtensions, PhpstanGenerator::extensionInstallerInstalled());
+    if ($artifact = $phpstan->generate($collection)) {
+      $this->fileSystem->saveData($artifact->getContent(), $artifact->getDestination(), FileExists::Replace);
+    }
 
     $this->output()->writeln((string) dt('<info>⟢ [neo]</info> Prepare Success'));
     $this->output()->writeln('');
 
     Cache::invalidateTags(['exo_build:build']);
+  }
+
+  /**
+   * Clears the cached library definitions.
+   *
+   * Prepare switches the render-time library rewrite off and on around the
+   * build event, so definitions cached on either side of that switch are wrong
+   * for the other; they are cleared before and after.
+   *
+   * On Drupal 11.1+ `library.discovery` is LibraryDiscoveryCollector, a
+   * CacheCollector: clear() empties its in-process storage and invalidates the
+   * persisted item, and nothing is persisted at shutdown. On 10.3 it is the
+   * thin LibraryDiscovery wrapper, whose collector is out of reach; there the
+   * persisted item is tagged `library_info`, so invalidating that tag drops it
+   * — what the wrapper's clearCachedDefinitions() did, minus the call to a
+   * method 11.1 deprecates. The one thing the tag path does not do is reset
+   * the wrapper's in-process copy, which only matters if a build-event
+   * subscriber reads definitions through `library.discovery` mid-prepare; no
+   * Neo subscriber does, and the process ends with the command.
+   */
+  protected function clearLibraryDefinitions(): void {
+    if ($this->libraryDiscovery instanceof CacheCollector) {
+      $this->libraryDiscovery->clear();
+      return;
+    }
+    Cache::invalidateTags(['library_info']);
   }
 
   /**

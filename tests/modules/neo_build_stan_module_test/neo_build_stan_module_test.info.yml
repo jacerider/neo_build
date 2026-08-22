@@ -1,0 +1,5 @@
+name: Neo Build Stan Module Test
+type: module
+description: 'A package: Neo module with no Neo libraries. Enabled by the resolver test to prove the package rule admits it.'
+package: Neo
+core_version_requirement: ^10.3 || ^11

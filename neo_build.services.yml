@@ -22,3 +22,7 @@ services:
   extension.list.neo:
     class: Drupal\neo_build\NeoExtensionList
     arguments: ['@module_handler', '@extension.list.module', '@extension.list.theme', '@library.discovery.parser']
+
+  neo_build.analysed_extension_resolver:
+    class: Drupal\neo_build\AnalysedExtensionResolver
+    arguments: ['@extension.list.neo', '@extension.list.module', '@extension.list.theme', '%app.root%']
