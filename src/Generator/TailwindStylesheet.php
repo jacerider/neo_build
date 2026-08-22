@@ -52,6 +52,23 @@ class TailwindStylesheet {
   private const INDENT = '  ';
 
   /**
+   * Weight given to a layered rule whose properties carry an `apply` entry.
+   *
+   * The field is kept rather than removed, and this is what can set it:
+   * `addRule()`, and only when the properties array has an `apply` key. It is
+   * the sole weight anything in this class writes.
+   *
+   * Its effect is to sort such rules after every rule that does not carry one,
+   * within the same layer. No subscriber puts an `apply` rule in a layer
+   * today — every `apply` in the info.yml `neo:` blocks sits under
+   * `utilities:`, which becomes a top-level `@utility` and is never sorted —
+   * so on today's sites every layered rule weighs 0 and the order is by
+   * selector alone. The field survives because the path that sets it is a
+   * supported one for a subscriber to take, and it is pinned by a test.
+   */
+  private const APPLY_WEIGHT = 1000;
+
+  /**
    * List of @import statements.
    *
    * @var array
@@ -343,7 +360,7 @@ class TailwindStylesheet {
     ];
 
     if (isset($processed['properties']['apply'])) {
-      $rule['weight'] = 1000;
+      $rule['weight'] = self::APPLY_WEIGHT;
     }
 
     $this->addRuleToStorage($rule, $layer);
@@ -379,7 +396,11 @@ class TailwindStylesheet {
   }
 
   /**
-   * Sort callback for rules.
+   * Sort callback for rules within a layer.
+   *
+   * Heavier rules last; equal weights by selector, ascending. APPLY_WEIGHT is
+   * the only weight anything sets, so in practice this reads as "rules
+   * carrying @apply after rules that do not, then alphabetical".
    *
    * @param array $a
    *   The first rule to compare.
@@ -389,94 +410,12 @@ class TailwindStylesheet {
    * @return int
    *   The comparison result.
    */
-  private function sort($a, $b): int {
-    // Check if either rule has an 'apply' property.
-    $aHasApply = isset($a['properties']['apply']);
-    $bHasApply = isset($b['properties']['apply']);
-
-    // If only one has apply, check for dependency first.
-    if ($aHasApply && !$bHasApply) {
-      // Rule A has apply - check if it references rule B's selector.
-      $applyValue = $a['properties']['apply'];
-      if ($this->applyReferencesSelector($applyValue, $b['selector'])) {
-        // A should come after B (A depends on B)
-        return 1;
-      }
-      // With no dependency, rules with apply still come after those without.
-      return 1;
-    }
-
-    if ($bHasApply && !$aHasApply) {
-      // Rule B has apply - check if it references rule A's selector.
-      $applyValue = $b['properties']['apply'];
-      if ($this->applyReferencesSelector($applyValue, $a['selector'])) {
-        // B should come after A (B depends on A)
-        return -1;
-      }
-      // With no dependency, rules with apply still come after those without.
-      return -1;
-    }
-
-    // If both have apply, check for cross-dependencies.
-    if ($aHasApply && $bHasApply) {
-      $aApplyValue = $a['properties']['apply'];
-      $bApplyValue = $b['properties']['apply'];
-
-      $aReferencesB = $this->applyReferencesSelector($aApplyValue, $b['selector']);
-      $bReferencesA = $this->applyReferencesSelector($bApplyValue, $a['selector']);
-
-      if ($aReferencesB && !$bReferencesA) {
-        // A depends on B, so B comes first.
-        return 1;
-      }
-      if ($bReferencesA && !$aReferencesB) {
-        // B depends on A, so A comes first.
-        return -1;
-      }
-
-      // No dependencies, or circular ones: fall through to weight/selector
-      // sorting.
-    }
-
-    // If both have apply, or neither do, use the weight/selector logic.
+  private function sort(array $a, array $b): int {
     if ($a['weight'] === $b['weight']) {
-      // Sort by selector name.
       return $a['selector'] <=> $b['selector'];
     }
+
     return $a['weight'] <=> $b['weight'];
-  }
-
-  /**
-   * Check if an apply rule references a specific selector.
-   *
-   * @param string $applyValue
-   *   The apply rule value
-   *   (e.g., '@apply btn;' or '@apply block btn bg-default;').
-   * @param string $selector
-   *   The selector to check for (e.g., '.btn').
-   *
-   * @return bool
-   *   TRUE if the apply rule references the selector, FALSE otherwise.
-   */
-  private function applyReferencesSelector(string $applyValue, string $selector): bool {
-    // Extract class names from the apply value
-    // Remove '@apply' and ';', normalize whitespace, and split by spaces.
-    $applyValue = preg_replace('/^@apply\s+/', '', trim($applyValue));
-    $applyValue = preg_replace('/;\s*$/', '', $applyValue);
-    $applyValue = preg_replace('/\s+/', ' ', trim($applyValue));
-
-    if (empty($applyValue)) {
-      return FALSE;
-    }
-
-    $appliedClasses = explode(' ', $applyValue);
-
-    // Convert selector to class name for comparison
-    // Handle various selector formats: '.btn', '#id', 'element', etc.
-    $className = ltrim($selector, '.#');
-
-    // Check if any of the applied classes match the selector.
-    return in_array($className, $appliedClasses);
   }
 
   /**
