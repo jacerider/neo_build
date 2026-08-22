@@ -3,7 +3,6 @@ services:
     class: Drupal\neo_build\Commands\DrushCommands
     arguments:
       - '%app.root%'
-      - '@plugin.manager.neo_build_scope'
       - '@file_system'
       - '@extension.list.module'
       - '@module_handler'
@@ -11,7 +10,6 @@ services:
       - '@extension.list.neo'
       - '@twig'
       - '@neo_build.preparer'
-      - '@theme.manager'
       - '@config.factory'
       - '@plugin.cache_clearer'
       - '@neo_build.project_root'

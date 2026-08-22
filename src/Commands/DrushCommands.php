@@ -6,7 +6,6 @@ namespace Drupal\neo_build\Commands;
 
 use Consolidation\OutputFormatters\StructuredData\PropertyList;
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
-use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Extension\ModuleExtensionList;
@@ -16,12 +15,12 @@ use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Plugin\CachedDiscoveryClearerInterface;
 use Drupal\Core\Template\TwigEnvironment;
-use Drupal\Core\Theme\ThemeManagerInterface;
 use Drupal\neo_build\NeoBuild;
 use Drupal\neo_build\NeoExtensionList;
 use Drupal\neo_build\PrepareNotice;
 use Drupal\neo_build\Preparer;
 use Drupal\neo_build\ProjectRootInterface;
+use Drupal\neo_build\Scope;
 use Drush\Commands\DrushCommands as CoreCommands;
 use Symfony\Component\Yaml\Yaml;
 
@@ -35,7 +34,6 @@ class DrushCommands extends CoreCommands {
    */
   public function __construct(
     private readonly string $appRoot,
-    private readonly PluginManagerInterface $scopeManager,
     private readonly FileSystemInterface $fileSystem,
     private readonly ModuleExtensionList $moduleExtensionList,
     private readonly ModuleHandlerInterface $moduleHandler,
@@ -43,7 +41,6 @@ class DrushCommands extends CoreCommands {
     private readonly NeoExtensionList $neoExtensionList,
     private readonly TwigEnvironment $twig,
     private readonly Preparer $preparer,
-    private readonly ThemeManagerInterface $themeManager,
     private readonly ConfigFactoryInterface $configFactory,
     private readonly CachedDiscoveryClearerInterface $pluginCacheClearer,
     private readonly ProjectRootInterface $projectRoot,
@@ -139,21 +136,12 @@ class DrushCommands extends CoreCommands {
    */
   public function neoBuildScopes($options = ['format' => 'table']) {
     $scopes = [];
-    foreach ($this->scopeManager->getDefinitions() as $scope => $definition) {
-      $scopes[$scope] = [
-        'id' => $scope,
-        'label' => $definition['label'],
-        'description' => $definition['description'],
+    foreach (Scope::cases() as $scope) {
+      $scopes[$scope->value] = [
+        'id' => $scope->value,
+        'label' => $scope->label(),
+        'description' => $scope->description(),
       ];
-    }
-    // Remove scopes based on the admin theme.
-    $active_theme = $this->themeManager->getActiveTheme();
-    $adminThemeName = $this->configFactory->get('system.theme')->get('admin');
-    if ($active_theme->getName() === $adminThemeName) {
-      unset($scopes['front']);
-    }
-    elseif (!$adminThemeName) {
-      unset($scopes['back']);
     }
     return new RowsOfFields($scopes);
   }
@@ -569,10 +557,7 @@ class DrushCommands extends CoreCommands {
    *   If no index or no server were passed or passed values are invalid.
    */
   public function neoTemplate() {
-    $themeId = $this->io()->choice((string) dt('Select the theme:'), [
-      'front' => (string) dt('Front Theme'),
-      'back' => (string) dt('Back Theme'),
-    ]);
+    $themeId = $this->io()->choice((string) dt('Select the theme:'), $this->templateThemeChoices());
     $baseTheme = $this->themeExtensionList->get('neo_base');
     $baseThemePath = $baseTheme->getPath();
     $theme = $this->themeExtensionList->get($themeId);
@@ -605,6 +590,25 @@ class DrushCommands extends CoreCommands {
     $this->fileSystem->prepareDirectory(dirname($destination), FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
     $this->fileSystem->copy($fileUri, $destination);
     $this->io()->success((string) dt('Template file @file created successfully.', ['@file' => $destination]));
+  }
+
+  /**
+   * The themes a template can be cloned into, keyed by theme machine name.
+   *
+   * One entry per scope: the theme a template belongs in is the theme that
+   * scope compiles into, which is the identity the enum states. Keeping the
+   * pair here rather than inline is what lets it be asserted without driving
+   * the command's interactive prompt.
+   *
+   * @return array<string, string>
+   *   Theme machine names, mapped to the scope label to offer them under.
+   */
+  protected function templateThemeChoices(): array {
+    $choices = [];
+    foreach (Scope::cases() as $scope) {
+      $choices[$scope->themeName()] = $scope->label();
+    }
+    return $choices;
   }
 
 }
