@@ -54,7 +54,7 @@ class TailwindStylesheetCharacterisationTest extends UnitTestCase {
     $css->addSource('/src/**/*.twig');
     $css->addCssVariable('--color-brand', 'red');
     $css->addUtility('.text-balance', ['text-wrap' => 'balance']);
-    $css->addRule('.card', ['padding' => '1rem'], NULL, 'components');
+    $css->addRule('.card', ['padding' => '1rem'], 'components');
     $css->addVariant('hocus', ['&:hover', '&:focus']);
 
     $expected = <<<'CSS'
@@ -153,10 +153,10 @@ class TailwindStylesheetCharacterisationTest extends UnitTestCase {
    */
   public function testOrdersComponentsLayerByWeightThenSelector(): void {
     $css = new TailwindStylesheet();
-    $css->addRule('.zeta', ['color' => 'z'], NULL, 'components');
-    $css->addRule('.alpha', ['color' => 'a'], NULL, 'components');
-    $css->addRule('.mid', ['apply' => '@apply alpha;'], NULL, 'components');
-    $css->addRule('.beta', ['color' => 'b'], NULL, 'components');
+    $css->addRule('.zeta', ['color' => 'z'], 'components');
+    $css->addRule('.alpha', ['color' => 'a'], 'components');
+    $css->addRule('.mid', ['apply' => '@apply alpha;'], 'components');
+    $css->addRule('.beta', ['color' => 'b'], 'components');
 
     $expected = <<<'CSS'
     @layer components {

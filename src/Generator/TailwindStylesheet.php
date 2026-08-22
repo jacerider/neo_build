@@ -17,10 +17,7 @@ namespace Drupal\neo_build\Generator;
  * // Add theme variables.
  * $css->addCssVariable('--bg-site', '100px')
  *     ->addCssVariable('--fg-size', '200px')
- *     ->addCssVariables([
- *         '--primary-color' => '#007bff',
- *         '--secondary-color' => '#6c757d'
- *     ]);
+ *     ->addCssVariable('--primary-color', '#007bff');
  *
  * // Add rules with camelCase properties (will be converted to kebab-case).
  * $css->addRule('.btn', [
@@ -40,14 +37,19 @@ namespace Drupal\neo_build\Generator;
  *     '& .icon' => [
  *       'marginRight' => '0.5rem', // Will become 'margin-right'
  *     ]
- *     ], null, 'components')
+ *     ], 'components')
  * ->addRule('.text-center', [
  *     'textAlign' => 'center' // Will become 'text-align'
- *     ], null, 'utilities');
+ *     ], 'utilities');
  *
  * echo $css->toCss();
  */
 class TailwindStylesheet {
+
+  /**
+   * Indentation for one nesting level of emitted CSS.
+   */
+  private const INDENT = '  ';
 
   /**
    * List of @import statements.
@@ -76,9 +78,9 @@ class TailwindStylesheet {
    * @var array
    */
   private array $layers = [
-    'base' => ['rules' => [], 'mediaQueries' => []],
-    'components' => ['rules' => [], 'mediaQueries' => []],
-    'utilities' => ['rules' => [], 'mediaQueries' => []],
+    'base' => ['rules' => []],
+    'components' => ['rules' => []],
+    'utilities' => ['rules' => []],
   ];
 
   /**
@@ -96,23 +98,11 @@ class TailwindStylesheet {
   private array $variants = [];
 
   /**
-   * List of media queries without layers (for backward compatibility).
-   *
-   * @var array
-   */
-  private array $mediaQueries = [];
-
-  /**
    * Custom layers defined by the user.
    *
    * @var array
    */
   private array $customLayers = [];
-
-  /**
-   * Indentation spaces.
-   */
-  private string $indent = '  ';
 
   /**
    * Convert camelCase property names to kebab-case.
@@ -187,34 +177,6 @@ class TailwindStylesheet {
   }
 
   /**
-   * Remove an @import statement.
-   *
-   * @param string $url
-   *   The URL to remove.
-   */
-  public function removeImport(string $url): self {
-    // Handle different URL formats for matching.
-    $patterns = [
-      '@import "' . $url . '";',
-      '@import \'' . $url . '\';',
-      '@import url(' . $url . ');',
-      '@import url("' . $url . '");',
-      '@import url(\'' . $url . '\');',
-    ];
-
-    $this->imports = array_filter($this->imports, function ($import) use ($patterns, $url) {
-      foreach ($patterns as $pattern) {
-        if (str_starts_with($import, $pattern)) {
-          return FALSE;
-        }
-      }
-        return !str_contains($import, $url);
-    });
-
-    return $this;
-  }
-
-  /**
    * Add a source file.
    *
    * @param string $url
@@ -251,34 +213,6 @@ class TailwindStylesheet {
   }
 
   /**
-   * Remove a source file.
-   *
-   * @param string $url
-   *   The URL to remove.
-   */
-  public function removeSource(string $url): self {
-    // Handle different URL formats for matching.
-    $patterns = [
-      '@source "' . $url . '";',
-      '@source \'' . $url . '\';',
-      '@source url(' . $url . ');',
-      '@source url("' . $url . '");',
-      '@source url(\'' . $url . '\');',
-    ];
-
-    $this->sources = array_filter($this->sources, function ($source) use ($patterns, $url) {
-      foreach ($patterns as $pattern) {
-        if (str_starts_with($source, $pattern)) {
-          return FALSE;
-        }
-      }
-      return !str_contains($source, $url);
-    });
-
-    return $this;
-  }
-
-  /**
    * Add a CSS custom property (variable) to the theme.
    *
    * @param string $name
@@ -298,58 +232,6 @@ class TailwindStylesheet {
   }
 
   /**
-   * Add multiple CSS custom properties to the theme.
-   *
-   * @param array $variables
-   *   Associative array of variable names and values.
-   * @param string $layer
-   *   The layer to add the variables to.
-   */
-  public function addCssVariables(array $variables, string $layer = 'theme'): self {
-    foreach ($variables as $name => $value) {
-      $this->addCssVariable($name, $value, $layer);
-    }
-    return $this;
-  }
-
-  /**
-   * Remove a theme variable.
-   *
-   * @param string $name
-   *   The variable name to remove.
-   * @param string $layer
-   *   The layer to remove the variable from.
-   */
-  public function removeCssVariable(string $name, string $layer = 'theme'): self {
-    // Ensure the variable name starts with --.
-    if (!str_starts_with($name, '--')) {
-      $name = '--' . $name;
-    }
-
-    unset($this->cssVariables[$layer][$name]);
-
-    return $this;
-  }
-
-  /**
-   * Get all theme variables.
-   *
-   * @return array
-   *   Array of theme variables.
-   */
-  public function getCssVariables(string $layer = 'theme'): array {
-    return $this->cssVariables[$layer] ?? [];
-  }
-
-  /**
-   * Clear all theme variables.
-   */
-  public function clearCssVariables(): self {
-    $this->cssVariables = [];
-    return $this;
-  }
-
-  /**
    * Add a custom layer definition.
    *
    * @param string $layer
@@ -358,7 +240,7 @@ class TailwindStylesheet {
   public function addLayer(string $layer): self {
     if (!isset($this->layers[$layer]) && !in_array($layer, $this->customLayers)) {
       $this->customLayers[] = $layer;
-      $this->layers[$layer] = ['rules' => [], 'mediaQueries' => []];
+      $this->layers[$layer] = ['rules' => []];
     }
 
     return $this;
@@ -429,13 +311,11 @@ class TailwindStylesheet {
    *   The utility class selector.
    * @param array $properties
    *   The CSS properties for the utility class.
-   * @param string|null $media
-   *   Optional media query.
    *
    * @return $this
    */
-  public function addUtility(string $selector, array $properties, ?string $media = NULL): self {
-    $this->addRule('@utility ' . ltrim($selector, '.'), $properties, $media);
+  public function addUtility(string $selector, array $properties): self {
+    $this->addRule('@utility ' . ltrim($selector, '.'), $properties);
     return $this;
   }
 
@@ -447,12 +327,10 @@ class TailwindStylesheet {
    * @param array $properties
    *   Associative array of CSS properties (camelCase will be converted to
    *   kebab-case).
-   * @param string|null $media
-   *   Optional media query (e.g., 'screen and (max-width: 768px)').
    * @param string|null $layer
    *   Optional CSS layer ('base', 'components', 'utilities', or custom layer).
    */
-  public function addRule(string $selector, array $properties, ?string $media = NULL, ?string $layer = NULL): self {
+  public function addRule(string $selector, array $properties, ?string $layer = NULL): self {
     // Process nested properties (this also handles camelCase conversion).
     $processed = $this->processNestedProperties($properties);
 
@@ -468,7 +346,7 @@ class TailwindStylesheet {
       $rule['weight'] = 1000;
     }
 
-    $this->addRuleToStorage($rule, $media, $layer);
+    $this->addRuleToStorage($rule, $layer);
 
     return $this;
   }
@@ -478,12 +356,10 @@ class TailwindStylesheet {
    *
    * @param array $rule
    *   The rule array with selector, properties, and possibly nestedRules.
-   * @param string|null $media
-   *   Optional media query.
    * @param string|null $layer
    *   Optional CSS layer.
    */
-  private function addRuleToStorage(array $rule, ?string $media = NULL, ?string $layer = NULL): void {
+  private function addRuleToStorage(array $rule, ?string $layer = NULL): void {
     // Ensure nestedRules key exists for consistency.
     if (!isset($rule['nestedRules'])) {
       $rule['nestedRules'] = [];
@@ -495,27 +371,10 @@ class TailwindStylesheet {
         $this->addLayer($layer);
       }
 
-      if ($media) {
-        if (!isset($this->layers[$layer]['mediaQueries'][$media])) {
-          $this->layers[$layer]['mediaQueries'][$media] = [];
-        }
-        $this->layers[$layer]['mediaQueries'][$media][] = $rule;
-      }
-      else {
-        $this->layers[$layer]['rules'][] = $rule;
-      }
+      $this->layers[$layer]['rules'][] = $rule;
     }
     else {
-      // Backward compatibility - no layer specified.
-      if ($media) {
-        if (!isset($this->mediaQueries[$media])) {
-          $this->mediaQueries[$media] = [];
-        }
-        $this->mediaQueries[$media][] = $rule;
-      }
-      else {
-        $this->rules[] = $rule;
-      }
+      $this->rules[] = $rule;
     }
   }
 
@@ -621,157 +480,6 @@ class TailwindStylesheet {
   }
 
   /**
-   * Add multiple rules at once.
-   *
-   * @param array $rules
-   *   Array of rules, each containing 'selector', 'properties', and
-   *   optionally 'media' and 'layer'.
-   */
-  public function addRules(array $rules): self {
-    foreach ($rules as $rule) {
-      $this->addRule(
-        $rule['selector'],
-        $rule['properties'],
-        $rule['media'] ?? NULL,
-        $rule['layer'] ?? NULL
-      );
-    }
-
-    return $this;
-  }
-
-  /**
-   * Add a single property to an existing selector or create new rule.
-   *
-   * @param string $selector
-   *   The CSS selector to modify.
-   * @param string $property
-   *   The CSS property to add or modify (camelCase will be converted).
-   * @param string $value
-   *   The value of the CSS property.
-   * @param string|null $media
-   *   Optional media query for the property.
-   * @param string|null $layer
-   *   Optional CSS layer for the property.
-   */
-  public function addProperty(string $selector, string $property, string $value, ?string $media = NULL, ?string $layer = NULL): self {
-    // Convert camelCase property to kebab-case.
-    $property = $this->convertPropertyName($property);
-
-    $found = FALSE;
-
-    if ($layer) {
-      // Ensure the layer exists.
-      if (!isset($this->layers[$layer])) {
-        $this->addLayer($layer);
-      }
-
-      $targetArray = $media ? ($this->layers[$layer]['mediaQueries'][$media] ?? []) : $this->layers[$layer]['rules'];
-
-      foreach ($targetArray as &$rule) {
-        if ($rule['selector'] === $selector) {
-          $rule['properties'][$property] = $value;
-          $found = TRUE;
-          break;
-        }
-      }
-
-      if (!$found) {
-        $this->addRule($selector, [$property => $value], $media, $layer);
-      }
-      else {
-        if ($media) {
-          $this->layers[$layer]['mediaQueries'][$media] = $targetArray;
-        }
-        else {
-          $this->layers[$layer]['rules'] = $targetArray;
-        }
-      }
-    }
-    else {
-      // Backward compatibility - no layer specified.
-      $targetArray = $media ? ($this->mediaQueries[$media] ?? []) : $this->rules;
-
-      foreach ($targetArray as &$rule) {
-        if ($rule['selector'] === $selector) {
-          $rule['properties'][$property] = $value;
-          $found = TRUE;
-          break;
-        }
-      }
-
-      if (!$found) {
-        $this->addRule($selector, [$property => $value], $media);
-      }
-      else {
-        if ($media) {
-          $this->mediaQueries[$media] = $targetArray;
-        }
-        else {
-          $this->rules = $targetArray;
-        }
-      }
-    }
-
-    return $this;
-  }
-
-  /**
-   * Remove a rule by selector.
-   *
-   * @param string $selector
-   *   The CSS selector to remove.
-   * @param string|null $media
-   *   Optional media query for the rule.
-   * @param string|null $layer
-   *   Optional CSS layer for the rule.
-   */
-  public function removeRule(string $selector, ?string $media = NULL, ?string $layer = NULL): self {
-    if ($layer && isset($this->layers[$layer])) {
-      if ($media) {
-        if (isset($this->layers[$layer]['mediaQueries'][$media])) {
-          $this->layers[$layer]['mediaQueries'][$media] = array_filter(
-                $this->layers[$layer]['mediaQueries'][$media],
-                fn($rule) => $rule['selector'] !== $selector
-            );
-
-          // Remove media query if empty.
-          if (empty($this->layers[$layer]['mediaQueries'][$media])) {
-            unset($this->layers[$layer]['mediaQueries'][$media]);
-          }
-        }
-      }
-      else {
-        $this->layers[$layer]['rules'] = array_filter(
-              $this->layers[$layer]['rules'],
-              fn($rule) => $rule['selector'] !== $selector
-          );
-      }
-    }
-    else {
-      // Backward compatibility - remove from non-layered rules.
-      if ($media) {
-        if (isset($this->mediaQueries[$media])) {
-          $this->mediaQueries[$media] = array_filter(
-                $this->mediaQueries[$media],
-                fn($rule) => $rule['selector'] !== $selector
-            );
-
-          // Remove media query if empty.
-          if (empty($this->mediaQueries[$media])) {
-            unset($this->mediaQueries[$media]);
-          }
-        }
-      }
-      else {
-        $this->rules = array_filter($this->rules, fn($rule) => $rule['selector'] !== $selector);
-      }
-    }
-
-    return $this;
-  }
-
-  /**
    * Add a variant for a component.
    *
    * @param string $name
@@ -781,35 +489,6 @@ class TailwindStylesheet {
    */
   public function addVariant($name, string|array $selectors) {
     $this->variants[$name] = is_array($selectors) ? $selectors : [$selectors];
-  }
-
-  /**
-   * Clear all rules and imports.
-   */
-  public function clear(): self {
-    $this->imports = [];
-    $this->sources = [];
-    $this->rules = [];
-    $this->mediaQueries = [];
-    $this->cssVariables = [];
-    $this->layers = [
-      'base' => ['rules' => [], 'mediaQueries' => []],
-      'components' => ['rules' => [], 'mediaQueries' => []],
-      'utilities' => ['rules' => [], 'mediaQueries' => []],
-    ];
-    $this->customLayers = [];
-    return $this;
-  }
-
-  /**
-   * Set indentation string.
-   *
-   * @param string $indent
-   *   The indentation string to use.
-   */
-  public function setIndent(string $indent): self {
-    $this->indent = $indent;
-    return $this;
   }
 
   /**
@@ -830,10 +509,10 @@ class TailwindStylesheet {
     foreach ($rule['properties'] as $property => $value) {
       $value = (string) $value;
       if ($property === 'apply') {
-        $css .= $baseIndent . $this->indent . $value;
+        $css .= $baseIndent . self::INDENT . $value;
       }
       else {
-        $css .= $baseIndent . $this->indent . $property . ': ' . $value;
+        $css .= $baseIndent . self::INDENT . $property . ': ' . $value;
       }
 
       // Add semicolon if not present.
@@ -846,7 +525,7 @@ class TailwindStylesheet {
     // Add nested rules if they exist.
     if (!empty($rule['nestedRules'])) {
       foreach ($rule['nestedRules'] as $nestedRule) {
-        $css .= $this->formatRule($nestedRule, $baseIndent . $this->indent);
+        $css .= $this->formatRule($nestedRule, $baseIndent . self::INDENT);
       }
     }
 
@@ -872,7 +551,7 @@ class TailwindStylesheet {
     }
 
     foreach ($this->cssVariables[$layer] as $name => $value) {
-      $css .= $this->indent . $name . ': ' . $value;
+      $css .= self::INDENT . $name . ': ' . $value;
 
       // Add semicolon if not present.
       if (!str_ends_with(trim($value), ';')) {
@@ -892,7 +571,7 @@ class TailwindStylesheet {
    * Format rules within a layer.
    *
    * @param array $layerData
-   *   The layer data containing rules and media queries.
+   *   The layer data containing the layer's rules.
    * @param string $baseIndent
    *   The base indentation string.
    *
@@ -903,20 +582,8 @@ class TailwindStylesheet {
     $css = '';
 
     uasort($layerData['rules'], fn($a, $b) => $this->sort($a, $b));
-    // Add regular rules.
     foreach ($layerData['rules'] as $rule) {
       $css .= $this->formatRule($rule, $baseIndent);
-    }
-
-    // Add media queries.
-    foreach ($layerData['mediaQueries'] as $media => $rules) {
-      $css .= $baseIndent . "@media {$media} {\n";
-
-      foreach ($rules as $rule) {
-        $css .= $this->formatRule($rule, $baseIndent . $this->indent);
-      }
-
-      $css .= $baseIndent . "}\n";
     }
 
     return $css;
@@ -925,13 +592,10 @@ class TailwindStylesheet {
   /**
    * Output all CSS rules as valid CSS string.
    *
-   * @param bool $minify
-   *   Whether to minify the output.
-   *
    * @return string
    *   The formatted CSS string.
    */
-  public function toCss(bool $minify = FALSE): string {
+  public function toCss(): string {
     $css = '';
 
     // Add source files.
@@ -961,7 +625,7 @@ class TailwindStylesheet {
     if ($this->hasLayeredRules() && FALSE) {
       $layerNames = array_merge(['base', 'components', 'utilities'], $this->customLayers);
       $activeLayers = array_filter($layerNames, fn($layer) =>
-        !empty($this->layers[$layer]['rules']) || !empty($this->layers[$layer]['mediaQueries'])
+        !empty($this->layers[$layer]['rules'])
       );
 
       if (!empty($activeLayers)) {
@@ -974,26 +638,14 @@ class TailwindStylesheet {
       $css .= $this->formatRule($rule);
     }
 
-    // Add backward-compatible media queries (without layers).
-    foreach ($this->mediaQueries as $media => $rules) {
-      $css .= "@media {$media} {\n";
-
-      foreach ($rules as $rule) {
-        $css .= $this->formatRule($rule, $this->indent);
-      }
-
-      $css .= "}\n";
-    }
-
     // Add layered rules in the correct order.
     $layerOrder = array_merge(['base', 'components', 'utilities'], $this->customLayers);
 
     foreach ($layerOrder as $layerName) {
-      if (isset($this->layers[$layerName]) &&
-          (!empty($this->layers[$layerName]['rules']) || !empty($this->layers[$layerName]['mediaQueries']))) {
+      if (isset($this->layers[$layerName]) && !empty($this->layers[$layerName]['rules'])) {
         $css .= "@layer {$layerName} {\n";
         $css .= $this->formatVariables($layerName);
-        $css .= $this->formatLayerRules($this->layers[$layerName], $this->indent);
+        $css .= $this->formatLayerRules($this->layers[$layerName], self::INDENT);
         $css .= "}\n\n";
       }
     }
@@ -1019,10 +671,6 @@ class TailwindStylesheet {
       }
     }
 
-    if ($minify) {
-      return $this->minify($css);
-    }
-
     return trim($css);
   }
 
@@ -1036,7 +684,6 @@ class TailwindStylesheet {
     return !empty($this->sources) ||
            !empty($this->cssVariables) ||
            !empty($this->rules) ||
-           !empty($this->mediaQueries) ||
            $this->hasLayeredRules();
   }
 
@@ -1049,7 +696,6 @@ class TailwindStylesheet {
   private function hasContentAfterSources(): bool {
     return !empty($this->cssVariables) ||
            !empty($this->rules) ||
-           !empty($this->mediaQueries) ||
            $this->hasLayeredRules();
   }
 
@@ -1061,7 +707,6 @@ class TailwindStylesheet {
    */
   private function hasContentAfterTheme(): bool {
     return !empty($this->rules) ||
-           !empty($this->mediaQueries) ||
            $this->hasLayeredRules();
   }
 
@@ -1073,63 +718,11 @@ class TailwindStylesheet {
    */
   private function hasLayeredRules(): bool {
     foreach ($this->layers as $layerData) {
-      if (!empty($layerData['rules']) || !empty($layerData['mediaQueries'])) {
+      if (!empty($layerData['rules'])) {
         return TRUE;
       }
     }
     return FALSE;
-  }
-
-  /**
-   * Minify CSS output.
-   *
-   * @param string $css
-   *   The CSS string to minify.
-   *
-   * @return string
-   *   The minified CSS string.
-   */
-  private function minify(string $css): string {
-    // Remove comments.
-    $css = preg_replace('/\/\*.*?\*\//s', '', $css);
-
-    // Remove unnecessary whitespace.
-    $css = preg_replace('/\s+/', ' ', $css);
-
-    // Remove spaces around certain characters.
-    $css = preg_replace('/\s*([{}:;,>+~])\s*/', '$1', $css);
-
-    // Remove trailing semicolons before closing braces.
-    $css = str_replace(';}', '}', $css);
-
-    return trim($css);
-  }
-
-  /**
-   * Get all imports, rules and media queries as array.
-   *
-   * @return array
-   *   An associative array of all CSS rules.
-   */
-  public function getRules(): array {
-    return [
-      'imports' => $this->imports,
-      'sources' => $this->sources,
-      'cssVariables' => $this->cssVariables,
-      'rules' => $this->rules,
-      'mediaQueries' => $this->mediaQueries,
-      'layers' => $this->layers,
-    ];
-  }
-
-  /**
-   * Magic method to output CSS when object is converted to string.
-   *
-   * @return string
-   *   The formatted CSS string.
-   */
-  public function __toString(): string {
-    return $this->toCss();
   }
 
 }

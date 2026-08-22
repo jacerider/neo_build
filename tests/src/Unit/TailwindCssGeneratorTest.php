@@ -78,9 +78,9 @@ class TailwindCssGeneratorTest extends UnitTestCase {
     $css->addImports(['/var/www/html/web/modules/contrib/neo/src/css/base.css']);
     $css->addSources(['/var/www/html/web/themes/front/src/**/*.twig']);
     $css->addCssVariable('--color-brand', 'red');
-    $css->addRule('html', ['color' => 'red'], NULL, 'base');
+    $css->addRule('html', ['color' => 'red'], 'base');
     $css->addCssVariable('--base-gap', '1rem', 'base');
-    $css->addRule('.card', ['padding' => '1rem'], NULL, 'components');
+    $css->addRule('.card', ['padding' => '1rem'], 'components');
     $css->addCssVariable('--card-pad', '2rem', 'components');
     $css->addUtility('.text-balance', ['text-wrap' => 'balance']);
     $css->addVariant('hocus', ['&:hover', '&:focus']);

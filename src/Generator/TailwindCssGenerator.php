@@ -63,7 +63,7 @@ final class TailwindCssGenerator implements ArtifactGeneratorInterface {
         $css->addCssVariable($key, $value, 'base');
       }
       else {
-        $css->addRule($key, $value, NULL, 'base');
+        $css->addRule($key, $value, 'base');
       }
     }
     foreach ($collection->getTailwindComponents() as $key => $value) {
@@ -71,7 +71,7 @@ final class TailwindCssGenerator implements ArtifactGeneratorInterface {
         $css->addCssVariable($key, $value, 'components');
       }
       else {
-        $css->addRule($key, $value, NULL, 'components');
+        $css->addRule($key, $value, 'components');
       }
     }
     foreach ($collection->getTailwindUtilities() as $key => $value) {
