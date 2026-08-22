@@ -224,12 +224,14 @@ async function runViteProd() {
  */
 async function runVite(scope, target) {
   return new Promise((resolve, reject) => {
-    let env = `NEO_SCOPE=${scope} `;
+    // The scope reaches Vite through neo.json, which prepare rewrites per
+    // scope before this runs. NEO_SCOPE was exported here as well and read by
+    // nothing on either side of the boundary.
     let viteCommand = CONFIG.commands.vite;
     if (target !== 'dev') {
       viteCommand += ' build && tsc';
     }
-    execAndShow(`${env}${viteCommand}`);
+    execAndShow(viteCommand);
     resolve();
   });
 }
