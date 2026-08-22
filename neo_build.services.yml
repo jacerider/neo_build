@@ -3,10 +3,6 @@ services:
     class: Drupal\neo_build\NeoBuild
     arguments: ['@theme.manager', '@extension.list.neo']
 
-  plugin.manager.neo_build_scope:
-    class: Drupal\neo_build\ScopePluginManager
-    arguments: ['@module_handler', '@cache.discovery']
-
   neo_build.inline_css_generator:
     class: Drupal\neo_build\NeoInlineCssGenerator
     arguments: ['@event_dispatcher', '@file_system', '@state', '@neo_build']

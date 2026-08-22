@@ -1,9 +1,0 @@
-front:
-  label: 'Frontend Theme'
-  description: 'Focus on assets built for the frontend.'
-back:
-  label: 'Backend Theme'
-  description: 'Focus on assets built for the backend.'
-# shared:
-#   label: 'Modules'
-#   description: 'Focus on assets built for both frontend and backend.'
