@@ -240,10 +240,15 @@ function setDevMode(mode) {
 
 /**
  * Call for cleanup
- * @param {string} mode - 'enable' or 'disable'
+ *
+ * Always unlocks. The compiled-versions stamp is suppressed after a failure, so
+ * the record never claims dist/ was built from versions it was not.
+ *
+ * @param {{skipStamp: boolean}} options - Cleanup options
+ * @returns {{status: number|null, signal: string|null}} The child's outcome
  */
-function cleanup() {
-  const command = `drush neo-dev-cleanup`;
+function cleanup(options = {}) {
+  const command = `drush neo-dev-cleanup${options.skipStamp ? ' --skip-stamp' : ''}`;
   return execAndShow(command);
 }
 
@@ -676,6 +681,9 @@ async function cli(target, scope) {
 // failing scope can set the status instead of a queued continuation exiting 0.
 cli().then((outcome) => {
   if (outcome && outcome.failed) {
+    // Cleanup runs on every path so a failed build still unlocks, but it must
+    // not stamp the compiled-versions record.
+    cleanup({ skipStamp: true });
     reportFailure(outcome);
     process.exit(exitStatusFor(outcome.result));
   }

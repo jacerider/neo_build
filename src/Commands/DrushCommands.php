@@ -272,16 +272,26 @@ class DrushCommands extends CoreCommands {
    * Cleanup files created during build.
    *
    * @command neo:build:dev:cleanup
+   * @option skip-stamp Unlock only, leaving the compiled versions record alone.
    * @usage drush neo:build:dev:cleanup
    *   Cleanup files created during build.
+   * @usage drush neo:build:dev:cleanup --skip-stamp
+   *   Cleanup after a failed build, without recording the compiled versions.
    * @aliases neo-dev-cleanup
    */
-  public function neoBuildCleanup() {
+  public function neoBuildCleanup(array $options = ['skip-stamp' => FALSE]) {
     $root = $this->projectRoot->getRoot();
     $this->fileSystem->delete($root . '/.git/hooks/pre-commit');
     $this->fileSystem->delete($root . '/_neo.lock');
     $this->output()->writeln('');
     $this->output()->writeln((string) dt('<info>✔ [neo]</info> Build cleanup complete.'));
+
+    // The stamp records what dist/ was built from, and the record is committed
+    // and shared with the team, so a failed build must unlock without writing
+    // it. The unlock above therefore always happens; this does not.
+    if (!empty($options['skip-stamp'])) {
+      return;
+    }
 
     // Update compiled versions.
     $config = $this->configFactory->getEditable('neo_build.info');
