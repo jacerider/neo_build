@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Drupal\neo_build;
 
-use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Core\Asset\LibraryDiscoveryInterface;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Cache\CacheCollector;
@@ -76,8 +75,6 @@ class Preparer {
    *   The library discovery.
    * @param \Symfony\Component\EventDispatcher\EventDispatcherInterface $eventDispatcher
    *   The event dispatcher.
-   * @param \Drupal\Component\Plugin\PluginManagerInterface $scopeManager
-   *   The scope plugin manager.
    * @param \Drupal\neo_build\NeoExtensionList $neoExtensionList
    *   The Neo extension list.
    * @param \Drupal\neo_build\AnalysedExtensionResolver $analysedExtensionResolver
@@ -98,7 +95,6 @@ class Preparer {
     private readonly StateInterface $state,
     private readonly LibraryDiscoveryInterface $libraryDiscovery,
     private readonly EventDispatcherInterface $eventDispatcher,
-    private readonly PluginManagerInterface $scopeManager,
     private readonly NeoExtensionList $neoExtensionList,
     private readonly AnalysedExtensionResolver $analysedExtensionResolver,
     private readonly ProjectRootInterface $projectRoot,
@@ -110,8 +106,10 @@ class Preparer {
   /**
    * Prepares a scope.
    *
-   * @param string $scope
-   *   The scope id.
+   * @param \Drupal\neo_build\Scope|string $scope
+   *   The scope, as a case or as its id. Drush hands the `neo:build <scope>`
+   *   argument through as a string, so both forms are accepted and normalised
+   *   here rather than at every call site.
    *
    * @return \Drupal\neo_build\PrepareResult
    *   The artifacts written and the notices gathered.
@@ -119,12 +117,13 @@ class Preparer {
    * @throws \InvalidArgumentException
    *   When the scope does not exist.
    */
-  public function prepare(string $scope): PrepareResult {
-    if (!$this->scopeManager->hasDefinition($scope)) {
+  public function prepare(Scope|string $scope): PrepareResult {
+    $case = $scope instanceof Scope ? $scope : Scope::tryFrom($scope);
+    if ($case === NULL) {
       throw new \InvalidArgumentException(sprintf("Scope '%s' does not exist.", $scope));
     }
-    $definition = $this->scopeManager->getDefinition($scope);
-    $result = new PrepareResult($scope, (string) $definition['label']);
+    $scope = $case->value;
+    $result = new PrepareResult($scope, $case->label());
 
     // Clear extension information.
     $this->moduleExtensionList->reset();

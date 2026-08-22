@@ -35,7 +35,6 @@ services:
       - '@state'
       - '@library.discovery'
       - '@event_dispatcher'
-      - '@plugin.manager.neo_build_scope'
       - '@extension.list.neo'
       - '@neo_build.analysed_extension_resolver'
       - '@neo_build.project_root'

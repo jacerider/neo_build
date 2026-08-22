@@ -9,6 +9,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\neo_build\Preparer;
 use Drupal\neo_build\PrepareNotice;
 use Drupal\neo_build\ProjectRootInterface;
+use Drupal\neo_build\Scope;
 use Drupal\neo_build_test\EventSubscriber\NeoBuildTestSubscriber;
 use PHPUnit\Framework\Attributes\Group;
 
@@ -219,6 +220,38 @@ class PreparerTest extends KernelTestBase {
     $modulePath = $this->container->get('extension.list.module')->getPath('neo_build_test');
     $this->assertSame(['Missing CSS file skipped: ' . $modulePath . '/src/css/neoBuildTestMissing.css (neo_build_test:missing)'], $missing);
     $this->assertSame([], $result->getNotices(PrepareNotice::MISSING_PRIMARY_FILE));
+  }
+
+  /**
+   * A scope id string and its enum case prepare the same thing.
+   *
+   * Drush hands `neo:build <scope>` through as a string and that has to keep
+   * working, so prepare normalises rather than choosing. The two calls are the
+   * same operation described two ways, and nothing about the result may depend
+   * on which way the caller said it.
+   */
+  public function testPreparesTheSameResultFromTheScopeIdAndFromTheEnumCase(): void {
+    $this->installTheme();
+
+    $fromString = $this->preparer()->prepare('front');
+    $fromCase = $this->preparer()->prepare(Scope::Front);
+
+    $this->assertSame($fromString->getScope(), $fromCase->getScope());
+    $this->assertSame($fromString->getScopeLabel(), $fromCase->getScopeLabel());
+    $this->assertEqualsCanonicalizing($fromString->getArtifacts(), $fromCase->getArtifacts());
+  }
+
+  /**
+   * The prepared scope's label comes from the enum.
+   */
+  public function testTakesTheScopeLabelFromTheEnum(): void {
+    $this->installTheme();
+
+    foreach (Scope::cases() as $scope) {
+      $result = $this->preparer()->prepare($scope);
+      $this->assertSame($scope->value, $result->getScope());
+      $this->assertSame($scope->label(), $result->getScopeLabel());
+    }
   }
 
   /**
