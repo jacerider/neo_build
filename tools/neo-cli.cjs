@@ -66,16 +66,72 @@ function safeExec(command, options = {}) {
 
 /**
  * Execute a command and display output
+ *
+ * Reports the child's exit status and signal rather than a boolean, so a caller
+ * can tell a genuine failure from a signal exit and can propagate the status.
+ *
  * @param {string} command - Command to execute
- * @returns {boolean} Success status
+ * @returns {{status: number|null, signal: string|null}} The child's outcome
  */
 function execAndShow(command) {
   try {
     execSync(command, { stdio: 'inherit' });
-    return true;
+    return { status: 0, signal: null };
   } catch (error) {
-    return false;
+    return {
+      status: typeof error.status === 'number' ? error.status : null,
+      signal: error.signal || null,
+    };
   }
+}
+
+/**
+ * Whether a step's outcome represents success
+ * @param {{status: number|null}} outcome - A step outcome from execAndShow()
+ * @returns {boolean} True when the child exited 0
+ */
+function succeeded(outcome) {
+  return outcome.status === 0;
+}
+
+/**
+ * The process exit status to report for a failing step
+ *
+ * The failing child's own status when it is an integer in 1-255, and 1
+ * otherwise - a signal-terminated step, or a status that could not be read.
+ *
+ * @param {{status: number|null}} outcome - A step outcome from execAndShow()
+ * @returns {number} The status to exit with
+ */
+function exitStatusFor(outcome) {
+  const status = outcome && outcome.status;
+  return Number.isInteger(status) && status >= 1 && status <= 255 ? status : 1;
+}
+
+/**
+ * Describe a failing build step
+ * @param {string} scope - The scope being built
+ * @param {string} step - The failing step, by name
+ * @param {{status: number|null, signal: string|null}} result - The child's outcome
+ * @param {boolean} distWritten - Whether dist/ was written before the failure
+ * @returns {Object} The failure
+ */
+function failure(scope, step, result, distWritten) {
+  return { failed: true, scope, step, result, distWritten };
+}
+
+/**
+ * Print the failure report: the scope, the step, and whether dist/ was written
+ * @param {Object} failed - A failure from failure()
+ */
+function reportFailure(failed) {
+  const reason = failed.result.signal
+    ? `killed by ${failed.result.signal}`
+    : `exit status ${failed.result.status === null ? 'unreadable' : failed.result.status}`;
+  console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed in the ${colors.yellow(failed.scope)} scope: ${failed.step} (${reason}).`);
+  console.error(`${colors.cyan('[neo]')} ${failed.distWritten
+    ? 'dist/ was written - the compiled assets are good; the type check is a separate gate.'
+    : 'dist/ was not written - the compiled assets are unchanged from the previous build.'}`);
 }
 
 function clear() {
@@ -179,7 +235,7 @@ function getScopes() {
  */
 function setDevMode(mode) {
   const command = `${CONFIG.commands.setDrushDev}${mode}`;
-  execAndShow(command);
+  return execAndShow(command);
 }
 
 /**
@@ -188,7 +244,7 @@ function setDevMode(mode) {
  */
 function cleanup() {
   const command = `drush neo-dev-cleanup`;
-  execAndShow(command);
+  return execAndShow(command);
 }
 
 /**
@@ -198,42 +254,67 @@ function cleanup() {
  */
 function runDrushNeo(scope) {
   const command = `${CONFIG.commands.drushNeo} ${scope}`;
-  execAndShow(command);
+  return execAndShow(command);
 }
 
 /**
  * Run Vite for production
- * @param {string} group - The group
+ *
+ * Stops at the first failing scope: a failure has already left the generated
+ * neo.json and neo.tsconfig.json rewritten for that scope, so the remaining
+ * scopes would build on a known-bad footing.
+ *
+ * @returns {Promise<Object>} The first scope failure, or a success outcome
  */
 async function runViteProd() {
   await guardDevServer();
   clear();
   console.log(`\n${colors.cyan('[neo]')} ${colors.yellow('Building for production...')}`);
   for (const [scope, details] of Object.entries(state.scopes)) {
-    cli('prod', scope);
+    const outcome = await cli('prod', scope);
+    if (outcome && outcome.failed) {
+      return outcome;
+    }
   }
   cleanup();
   console.log(`\n${colors.green('✔')} ${colors.cyan('[neo]')} All builds completed successfully`);
+  return { failed: false };
 }
 
 /**
  * Run Vite for a specific scope and group
+ *
+ * For a production target the compile and the type check are separate children,
+ * so a failure report can name which of them failed. They keep the same order
+ * they had when the two shared one shell command.
+ *
  * @param {string} scope - The scope
  * @param {string} target - 'dev' or 'prod'
- * @returns {Promise<void>}
+ * @returns {Promise<Object>} A failure, or a success outcome
  */
 async function runVite(scope, target) {
-  return new Promise((resolve, reject) => {
-    // The scope reaches Vite through neo.json, which prepare rewrites per
-    // scope before this runs. NEO_SCOPE was exported here as well and read by
-    // nothing on either side of the boundary.
-    let viteCommand = CONFIG.commands.vite;
-    if (target !== 'dev') {
-      viteCommand += ' build && tsc';
-    }
-    execAndShow(viteCommand);
-    resolve();
-  });
+  // The scope reaches Vite through neo.json, which prepare rewrites per scope
+  // before this runs. NEO_SCOPE was exported here as well and read by nothing
+  // on either side of the boundary.
+  if (target === 'dev') {
+    // The dev server's own status is deliberately unread here: the everyday way
+    // a dev session ends is a signal, which must still fall through to the prod
+    // rebuild.
+    execAndShow(CONFIG.commands.vite);
+    return { failed: false };
+  }
+
+  const compile = execAndShow(`${CONFIG.commands.vite} build`);
+  if (!succeeded(compile)) {
+    return failure(scope, 'the compile', compile, false);
+  }
+
+  const typeCheck = execAndShow('tsc');
+  if (!succeeded(typeCheck)) {
+    return failure(scope, 'the type check', typeCheck, true);
+  }
+
+  return { failed: false };
 }
 
 /**
@@ -453,7 +534,7 @@ DRUPAL_NIGHTWATCH_IGNORE_DIRECTORIES=node_modules,vendor,.*,sites/*/files,sites/
   if (!fs.existsSync(path.join(coreDir, 'node_modules', '.bin', 'nightwatch'))) {
     console.log(`${colors.cyan('[neo]')} ${colors.yellow('Installing Drupal core JS dependencies (one time, this takes a few minutes)...')}`);
     // Core pins yarn via its packageManager field; corepack activates it.
-    if (!execAndShow(`corepack enable && cd ${coreDir} && yarn install`)) {
+    if (!succeeded(execAndShow(`corepack enable && cd ${coreDir} && yarn install`))) {
       console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Failed to install core's JS dependencies.`);
       process.exit(1);
     }
@@ -472,7 +553,7 @@ function runNightwatch() {
 
   if (!state.noBuild) {
     console.log(`${colors.cyan('[neo]')} ${colors.yellow('Building assets so the browser tests what ships...')}`);
-    if (!execAndShow('npm run deploy')) {
+    if (!succeeded(execAndShow('npm run deploy'))) {
       console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed; not running tests against stale assets.`);
       process.exit(1);
     }
@@ -484,7 +565,7 @@ function runNightwatch() {
   // With no tag, run everything except core's own suite.
   const filter = state.tag ? `--tag ${state.tag}` : '--skiptags core';
   console.log(`\n${colors.cyan('[neo]')} ${colors.yellow(`Running Nightwatch (${filter})...`)}\n`);
-  const passed = execAndShow(`cd ${coreDir} && ${CONFIG.nightwatch.runner} ${filter}`);
+  const passed = succeeded(execAndShow(`cd ${coreDir} && ${CONFIG.nightwatch.runner} ${filter}`));
   console.log(`\n${colors.cyan('[neo]')} Reports: ${colors.yellow('web/core/reports/nightwatch')}`);
   process.exit(passed ? 0 : 1);
 }
@@ -523,8 +604,7 @@ async function cli(target, scope) {
     // Run 'all' scope.
     if (state.all) {
       state.all = false;
-      runViteProd();
-      return;
+      return await runViteProd();
     }
 
     // Interactive prompts
@@ -553,36 +633,51 @@ async function cli(target, scope) {
 
     // Set dev mode based on target
     const devMode = state.target === 'prod' ? false : true;
+    let toggle;
     if (devMode) {
       clear();
       console.log(`${colors.cyan('[neo]')} ${colors.yellow('Build CLI')}\n`);
-      setDevMode('enable');
+      toggle = setDevMode('enable');
     }
     else {
-      setDevMode('disable');
+      toggle = setDevMode('disable');
+    }
+    if (!succeeded(toggle)) {
+      return failure(state.scope, 'the dev-mode toggle', toggle, false);
     }
 
     // Run Drupal Neo command for each scope
-    runDrushNeo(state.scope);
+    const prepared = runDrushNeo(state.scope);
+    if (!succeeded(prepared)) {
+      return failure(state.scope, 'prepare', prepared, false);
+    }
 
-    runVite(state.scope, state.target).then(() => {
-      if (!devMode) {
-        // Prod build finished successfully — exit 0 so callers (ddev exec, CI)
-        // don't report a false failure.
-        process.exit(0);
-      }
-      else {
-        runViteProd();
-      }
-    }).catch((error) => {
-      console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed:`, error.message);
-      process.exit(1);
-    });
+    const built = await runVite(state.scope, state.target);
+    if (built.failed) {
+      return built;
+    }
+
+    if (devMode) {
+      // The dev session has ended; rebuild for production.
+      return await runViteProd();
+    }
+
+    return { failed: false };
   } catch (error) {
     console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed:`, error.message);
     process.exit(1);
   }
 }
 
-// Start the CLI
-cli();
+// Start the CLI. The process exits here, once the scope loop has finished, so a
+// failing scope can set the status instead of a queued continuation exiting 0.
+cli().then((outcome) => {
+  if (outcome && outcome.failed) {
+    reportFailure(outcome);
+    process.exit(exitStatusFor(outcome.result));
+  }
+  process.exit(0);
+}).catch((error) => {
+  console.error(`\n${colors.red('✘')} ${colors.cyan('[neo]')} Build failed:`, error.message);
+  process.exit(1);
+});
