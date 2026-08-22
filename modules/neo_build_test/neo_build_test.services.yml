@@ -4,3 +4,8 @@ services:
     arguments: ['@state']
     tags:
       - { name: event_subscriber }
+
+  neo_build_test.inline_subscriber:
+    class: Drupal\neo_build_test\EventSubscriber\NeoBuildTestInlineSubscriber
+    tags:
+      - { name: event_subscriber }
