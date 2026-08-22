@@ -1,5 +1,0 @@
-# vite-dev-client:
-#   # neo: true
-#   header: true
-#   js:
-#     '@vite/client': { attributes: { type: module } }

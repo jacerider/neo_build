@@ -56,12 +56,6 @@ class NeoBuild {
     }
 
     foreach ($libraries as $libraryId => $library) {
-      if ($libraryId === 'vite-dev-client') {
-        $libraries[$libraryId]['js'] = [
-          $this->getViteDevServerUrl() . '@vite/client' => $libraries[$libraryId]['js']['@vite/client'],
-        ];
-        continue;
-      }
       if ($neoLibrary = $this->neoExtensionList->getLibrary($extension, $libraryId, $library)) {
         if ($neoLibrary->isImport()) {
           // Import libraries are automatically included in the main tailwind

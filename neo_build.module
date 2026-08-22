@@ -20,7 +20,8 @@ function neo_build_library_info_alter(array &$libraries, string $extension) : vo
     \Drupal::service('neo_build')->processLibraries($libraries, $extension);
   }
   catch (ManifestNotFoundException | ManifestCouldNotBeLoadedException $e) {
-    // \Drupal::messenger()->addError($e->getMessage());
+    // A missing or unreadable manifest means this extension has no built assets
+    // to rewrite; leave its libraries as declared.
   }
   if ($extension === 'canvas') {
     if (isset($libraries['canvas-ui'])) {
@@ -37,10 +38,6 @@ function neo_build_module_implements_alter(&$implementations, $hook) {
     $group = $implementations['neo_build'];
     unset($implementations['neo_build']);
     $implementations['neo_build'] = $group;
-    // If (isset($implementations['canvas'])) {
-    // unset($implementations['canvas']);
-    // $implementations['canvas'] = $group;
-    // }.
   }
 }
 
