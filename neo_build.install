@@ -94,3 +94,19 @@ function neo_build_update_11001() {
   }
   return NULL;
 }
+
+/**
+ * Re-persist the inline CSS monitored cache tags under their new names.
+ *
+ * The tags the inline CSS generator watches are persisted in state, so a site
+ * deployed with the build cache tag's rename keeps watching the predecessor
+ * suite's name until something regenerates. In that window a prepare
+ * invalidates neo_build:build, the generator is still watching the name it was
+ * deployed with, and the inline CSS silently does not regenerate. Regenerating
+ * here closes that window at drush updatedb rather than at whatever clears
+ * caches next.
+ */
+function neo_build_update_11002() {
+  \Drupal::service('neo_build.inline_css_generator')->generate();
+  return (string) t('Regenerated the inline CSS files and re-persisted the monitored cache tags under their renamed values.');
+}
