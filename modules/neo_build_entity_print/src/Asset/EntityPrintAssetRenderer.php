@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\neo_build\Asset;
+namespace Drupal\neo_build_entity_print\Asset;
 
 use Drupal\Core\Asset\AttachedAssets;
 use Drupal\entity_print\Asset\AssetRenderer;

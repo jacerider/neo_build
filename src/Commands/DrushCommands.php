@@ -111,6 +111,7 @@ class DrushCommands extends CoreCommands {
     // resolver asks the Neo extension list un-scoped, and that has to be the
     // first call in the process.
     $analysedExtensions = $this->analysedExtensionResolver->resolve();
+    $excludedExtensions = $this->analysedExtensionResolver->resolveExcluded($analysedExtensions);
 
     $scopedExtensions = $this->neoExtensionList->all([$scope]);
     foreach ($scopedExtensions as $extension) {
@@ -132,7 +133,7 @@ class DrushCommands extends CoreCommands {
 
     $this->fileSystem->saveData($collection->toNeoJson(), $root . '/neo.json', FileExists::Replace);
     $this->fileSystem->saveData($collection->toTsJson(), $root . '/neo.tsconfig.json', FileExists::Replace);
-    $phpstan = new PhpstanGenerator($analysedExtensions, PhpstanGenerator::extensionInstallerInstalled());
+    $phpstan = new PhpstanGenerator($analysedExtensions, PhpstanGenerator::extensionInstallerInstalled(), $excludedExtensions);
     if ($artifact = $phpstan->generate($collection)) {
       $this->fileSystem->saveData($artifact->getContent(), $artifact->getDestination(), FileExists::Replace);
     }

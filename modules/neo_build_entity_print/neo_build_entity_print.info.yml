@@ -1,0 +1,9 @@
+name: Neo | Build | Entity Print
+type: module
+description: 'Serves Neo''s CSS-as-JS assets to entity_print in DEV mode, so prints pick up the dev server''s styles.'
+package: Neo
+version: 1.0.65
+core_version_requirement: ^10.3 || ^11
+dependencies:
+  - entity_print:entity_print
+  - neo_build:neo_build

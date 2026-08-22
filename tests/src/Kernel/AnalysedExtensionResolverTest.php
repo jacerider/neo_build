@@ -127,4 +127,56 @@ class AnalysedExtensionResolverTest extends KernelTestBase {
     $this->assertNotContains('modules/custom', $paths);
   }
 
+  /**
+   * A nested extension whose declared dependency is not on disk is excluded.
+   *
+   * PHPStan refuses to ignore "extends unknown class" and "unknown class"
+   * errors, so optional-integration code inside an analysed extension — code
+   * that only resolves when some other module is installed — would break the
+   * gate on every site without that module. The rule is about resolvability,
+   * never a list of files.
+   */
+  public function testExcludesNestedExtensionWhoseDependencyIsNotOnDisk(): void {
+    $resolver = $this->resolver($this->vfsRoot->url());
+    $excluded = $resolver->resolveExcluded($resolver->resolve());
+
+    $modules = $this->container->get('extension.list.module');
+    $this->assertTrue($modules->exists('neo_build_stan_nested_missing_test'));
+    $this->assertSame($modules->getPath('neo_build_stan_nested_missing_test'), $excluded['neo_build_stan_nested_missing_test']);
+  }
+
+  /**
+   * A nested extension that is on disk but not enabled stays analysed.
+   *
+   * Enabled-ness is not the question; whether its dependencies resolve is.
+   */
+  public function testKeepsNestedExtensionThatIsOnDiskButNotEnabled(): void {
+    $resolver = $this->resolver($this->vfsRoot->url());
+    $excluded = $resolver->resolveExcluded($resolver->resolve());
+
+    $modules = $this->container->get('extension.list.module');
+    $this->assertTrue($modules->exists('neo_build_stan_nested_dormant_test'));
+    $this->assertFalse($this->container->get('module_handler')->moduleExists('neo_build_stan_nested_dormant_test'));
+    $this->assertArrayNotHasKey('neo_build_stan_nested_dormant_test', $excluded);
+  }
+
+  /**
+   * The entity_print submodule is excluded wherever entity_print is absent.
+   *
+   * This is the rule applied to the case that motivated it: neo_build's own
+   * neo_build_entity_print depends on entity_print, so on a site without
+   * entity_print on disk it cannot resolve and drops out of the analysed path.
+   */
+  public function testExcludesTheEntityPrintSubmoduleWhenEntityPrintIsNotOnDisk(): void {
+    $modules = $this->container->get('extension.list.module');
+    if ($modules->exists('entity_print')) {
+      $this->markTestSkipped('entity_print is on disk here, so the submodule resolves and is analysed rather than excluded.');
+    }
+
+    $resolver = $this->resolver($this->vfsRoot->url());
+    $excluded = $resolver->resolveExcluded($resolver->resolve());
+
+    $this->assertSame($modules->getPath('neo_build_entity_print'), $excluded['neo_build_entity_print']);
+  }
+
 }

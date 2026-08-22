@@ -1,0 +1,7 @@
+name: Neo Build Stan Nested Dormant Test
+type: module
+description: 'Nested under an analysed extension, never enabled, depending only on a module that is on disk. The exclusion rule leaves it analysed.'
+package: Neo Test
+core_version_requirement: ^10.3 || ^11
+dependencies:
+  - neo_build:neo_build

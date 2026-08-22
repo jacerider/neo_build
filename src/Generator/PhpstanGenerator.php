@@ -13,8 +13,9 @@ use Drupal\neo_build\NeoBuildCollection;
  *
  * The analysed paths come from the analysed-extension resolver and are emitted
  * relative to the project root, in the resolver's order — stable, so a
- * regenerated file diffs by what changed and nothing else. Level, file
- * extensions and the ignore patterns are fixed.
+ * regenerated file diffs by what changed and nothing else. The paths the
+ * resolver's exclusion rule names are emitted under excludePaths, omitted when
+ * there are none. Level, file extensions and the ignore patterns are fixed.
  *
  * phpstan-drupal's extension.neon is included only when
  * phpstan/extension-installer is absent. The installer registers that file
@@ -49,10 +50,15 @@ final class PhpstanGenerator implements ArtifactGeneratorInterface {
    *   they are to be emitted.
    * @param bool $extensionInstallerInstalled
    *   Whether phpstan/extension-installer is installed.
+   * @param array<string, string> $excludedExtensions
+   *   Nested extension paths relative to the app root, keyed by name, that
+   *   the analysed paths must exclude; rendered under excludePaths and
+   *   omitted entirely when empty.
    */
   public function __construct(
     private readonly array $analysedExtensions,
     private readonly bool $extensionInstallerInstalled,
+    private readonly array $excludedExtensions = [],
   ) {}
 
   /**
@@ -74,22 +80,22 @@ final class PhpstanGenerator implements ArtifactGeneratorInterface {
    */
   public function generate(NeoBuildCollection $collection): ?Artifact {
     $relativeRoot = $collection->getRelativeRoot();
-    $data = [
-      'parameters' => [
-        'level' => 1,
-        'paths' => array_values(array_map(
-          fn (string $path): string => $relativeRoot . $path,
-          $this->analysedExtensions,
-        )),
-        'fileExtensions' => ['php', 'module', 'inc', 'install', 'theme'],
-        'ignoreErrors' => [
-          '#^Unsafe usage of new static#',
-          '#Drupal calls should be avoided in classes, use dependency injection instead#',
-          '#^Plugin definitions cannot be altered.#',
-          '#^Class .* extends @internal class#',
-        ],
-      ],
+    $relative = fn (string $path): string => $relativeRoot . $path;
+    $parameters = [
+      'level' => 1,
+      'paths' => array_values(array_map($relative, $this->analysedExtensions)),
     ];
+    if ($this->excludedExtensions) {
+      $parameters['excludePaths'] = array_values(array_map($relative, $this->excludedExtensions));
+    }
+    $parameters['fileExtensions'] = ['php', 'module', 'inc', 'install', 'theme'];
+    $parameters['ignoreErrors'] = [
+      '#^Unsafe usage of new static#',
+      '#Drupal calls should be avoided in classes, use dependency injection instead#',
+      '#^Plugin definitions cannot be altered.#',
+      '#^Class .* extends @internal class#',
+    ];
+    $data = ['parameters' => $parameters];
     if (!$this->extensionInstallerInstalled) {
       $data['includes'] = [self::EXTENSION_NEON];
     }

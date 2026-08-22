@@ -1,0 +1,7 @@
+name: Neo Build Stan Nested Missing Test
+type: module
+description: 'Nested under an analysed extension and depending on a module that is not on disk. The exclusion rule lists it under excludePaths.'
+package: Neo Test
+core_version_requirement: ^10.3 || ^11
+dependencies:
+  - neo_build_stan_no_such_module:neo_build_stan_no_such_module

@@ -117,4 +117,21 @@ class PhpstanGeneratorTest extends UnitTestCase {
     ], $parameters['paths']);
   }
 
+  /**
+   * Excluded paths are rendered under excludePaths, after the paths.
+   *
+   * With nothing excluded the key is omitted entirely — the test above pins
+   * that key set — so a site with no unresolvable nested extension gets the
+   * same file it always got.
+   */
+  public function testRendersExcludePathsWhenThereAreAny(): void {
+    $generator = new PhpstanGenerator(self::PATHS, TRUE, [
+      'neo_build_entity_print' => 'modules/contrib/neo_build/modules/neo_build_entity_print',
+    ]);
+
+    $parameters = Yaml::decode($generator->generate($this->collection())->getContent())['parameters'];
+    $this->assertSame(['level', 'paths', 'excludePaths', 'fileExtensions', 'ignoreErrors'], array_keys($parameters));
+    $this->assertSame(['./web/modules/contrib/neo_build/modules/neo_build_entity_print'], $parameters['excludePaths']);
+  }
+
 }

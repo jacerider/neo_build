@@ -6,6 +6,7 @@
  */
 
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
+use Drupal\neo_build\EntityPrintSubmoduleInstaller;
 
 /**
  * Implements hook_requirements().
@@ -75,4 +76,21 @@ function neo_build_requirements($phase) {
   }
 
   return $requirements;
+}
+
+/**
+ * Enable neo_build_entity_print where entity_print is enabled.
+ *
+ * The dev-mode entity_print asset shim moved out of neo_build into the
+ * optional neo_build_entity_print submodule, so neo_build passes PHPStan on
+ * sites without entity_print. Sites with entity_print enabled get the
+ * submodule enabled here and the shim keeps working without anyone doing
+ * anything by hand; sites without entity_print are untouched.
+ */
+function neo_build_update_11001() {
+  $installer = new EntityPrintSubmoduleInstaller(\Drupal::moduleHandler(), \Drupal::service('module_installer'));
+  if ($installer->installWhereEntityPrintIsEnabled()) {
+    return (string) t('Enabled neo_build_entity_print: entity_print is enabled on this site and the dev-mode print-asset shim now lives there.');
+  }
+  return NULL;
 }
