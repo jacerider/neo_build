@@ -6,6 +6,7 @@ namespace Drupal\neo_build\Event;
 
 use Drupal\Component\EventDispatcher\Event;
 use Drupal\neo_build\Preparer;
+use Drupal\neo_build\Scope;
 
 /**
  * Event that is fired to allow for custom CSS to be added.
@@ -16,11 +17,11 @@ class NeoBuildInlineEvent extends Event {
   const EVENT_NAME = 'neo_build_inline';
 
   /**
-   * The theme name.
+   * The scope this event was dispatched for.
    *
-   * @var string
+   * @var \Drupal\neo_build\Scope
    */
-  public $themeName;
+  public $scope;
 
   /**
    * Whether or not the site is in development mode.
@@ -46,13 +47,13 @@ class NeoBuildInlineEvent extends Event {
   /**
    * Constructs the object.
    *
-   * @param string $themeName
-   *   The theme name.
+   * @param \Drupal\neo_build\Scope $scope
+   *   The scope this event is dispatched for.
    * @param bool $devMode
    *   Whether or not the site is in development mode.
    */
-  public function __construct(string $themeName, bool $devMode = FALSE) {
-    $this->themeName = $themeName;
+  public function __construct(Scope $scope, bool $devMode = FALSE) {
+    $this->scope = $scope;
     $this->devMode = $devMode;
     $this->data = [];
     $this->cacheTags = [
@@ -64,13 +65,18 @@ class NeoBuildInlineEvent extends Event {
   }
 
   /**
-   * Gets the theme name.
+   * Gets the scope this event was dispatched for.
    *
-   * @return string
-   *   The theme name.
+   * Renamed from `getThemeName()`, which was only ever right by accident: a
+   * scope's id and its theme's machine name are the same string. Nothing
+   * wraps the old name — a subscriber outside this repository that read it
+   * has to move, and is meant to find out at once rather than later.
+   *
+   * @return \Drupal\neo_build\Scope
+   *   The scope.
    */
-  public function getThemeName(): string {
-    return $this->themeName;
+  public function getScope(): Scope {
+    return $this->scope;
   }
 
   /**

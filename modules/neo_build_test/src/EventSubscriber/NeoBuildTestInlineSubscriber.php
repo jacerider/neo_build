@@ -43,7 +43,7 @@ final class NeoBuildTestInlineSubscriber implements EventSubscriberInterface {
    *   The inline event.
    */
   public function onInline(NeoBuildInlineEvent $event): void {
-    $event->addCssValue(self::CSS_PROPERTY, $event->getThemeName());
+    $event->addCssValue(self::CSS_PROPERTY, $event->getScope()->value);
     $event->addCacheTags([self::CACHE_TAG]);
   }
 

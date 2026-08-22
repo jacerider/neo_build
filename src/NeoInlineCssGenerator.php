@@ -60,7 +60,7 @@ class NeoInlineCssGenerator implements CacheTagsInvalidatorInterface, EventSubsc
 
     $allTags = [];
     foreach (Scope::cases() as $scope) {
-      $event = new NeoBuildInlineEvent($scope->value, $isDevMode);
+      $event = new NeoBuildInlineEvent($scope, $isDevMode);
       $this->eventDispatcher->dispatch($event, NeoBuildInlineEvent::EVENT_NAME);
       $allTags = array_merge($allTags, $event->getCacheTags());
       $this->fileSystem->saveData($event->getCss(), $directory . '/' . $scope->value . '.css', FileExists::Replace);

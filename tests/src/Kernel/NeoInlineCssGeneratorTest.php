@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\neo_build\Kernel;
 
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\neo_build\Event\NeoBuildInlineEvent;
 use Drupal\neo_build\NeoInlineCssGenerator;
 use Drupal\neo_build\Preparer;
 use Drupal\neo_build\Scope;
@@ -138,6 +139,23 @@ class NeoInlineCssGeneratorTest extends KernelTestBase {
     foreach (Scope::cases() as $scope) {
       $this->assertFileDoesNotExist($this->cssPath($scope->value));
     }
+  }
+
+  /**
+   * A subscriber is handed the scope case the generator dispatched for.
+   */
+  public function testHandsSubscribersTheScopeCaseItDispatchedFor(): void {
+    $received = [];
+    $this->container->get('event_dispatcher')->addListener(
+      NeoBuildInlineEvent::EVENT_NAME,
+      static function (NeoBuildInlineEvent $event) use (&$received): void {
+        $received[] = $event->getScope();
+      },
+    );
+
+    $this->generator()->generate();
+
+    $this->assertSame(Scope::cases(), $received);
   }
 
   /**
