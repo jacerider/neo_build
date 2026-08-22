@@ -10,10 +10,10 @@ use Drupal\Core\Controller\ControllerBase;
 class TestController extends ControllerBase {
 
   /**
-   * Test.
+   * Renders the manual browser check for the fixture's front library.
    *
-   * @return string
-   *   Return Hello string.
+   * @return array
+   *   A render array.
    */
   public function test() {
     return ['#theme' => 'neo_build_test'];

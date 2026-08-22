@@ -1,8 +1,7 @@
-name: Neo | Vite | Test
+name: Neo | Build | Test
 type: module
-description: Test Vite integration for Drupal asset libraries.
+description: 'Kernel-test fixture for Neo Build: a front-scoped and a back-scoped Neo library, one with a missing entrypoint, and a test theme whose CSS entrypoint is a primary file.'
 package: 'Neo Test'
 version: 1.0.65
-core_version_requirement: ^10.3
-php: 8.0
+core_version_requirement: ^10.3 || ^11
 neo: true

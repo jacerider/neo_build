@@ -1,0 +1,9 @@
+# The theme's one Neo library. Its CSS entrypoint imports "tailwindcss", which
+# is what makes it the scope's primary file: prepare writes tailwind.neo.css
+# beside it.
+global:
+  version: VERSION
+  neo: true
+  css:
+    theme:
+      src/css/neoBuildTestTheme.css: {}

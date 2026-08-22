@@ -1,0 +1,13 @@
+name: Neo | Build | Test Theme
+type: theme
+description: 'Kernel-test fixture theme for Neo Build: declares both scopes and ships the CSS entrypoint prepare detects as the primary file.'
+package: 'Neo Test'
+version: 1.0.65
+core_version_requirement: ^10.3 || ^11
+base theme: false
+neo:
+  scope:
+    - front
+    - back
+libraries:
+  - neo_build_test_theme/global
