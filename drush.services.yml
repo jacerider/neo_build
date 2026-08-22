@@ -11,5 +11,9 @@ services:
       - '@extension.list.neo'
       - '@twig'
       - '@neo_build.preparer'
+      - '@theme.manager'
+      - '@config.factory'
+      - '@plugin.cache_clearer'
+      - '@neo_build.project_root'
     tags:
       - { name: drush.command }

@@ -7,18 +7,21 @@ namespace Drupal\neo_build\Commands;
 use Consolidation\OutputFormatters\StructuredData\PropertyList;
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Component\Plugin\PluginManagerInterface;
-use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Cache\Cache;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\ThemeExtensionList;
 use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
+use Drupal\Core\Plugin\CachedDiscoveryClearerInterface;
 use Drupal\Core\Template\TwigEnvironment;
+use Drupal\Core\Theme\ThemeManagerInterface;
 use Drupal\neo_build\NeoBuild;
 use Drupal\neo_build\NeoExtensionList;
 use Drupal\neo_build\PrepareNotice;
 use Drupal\neo_build\Preparer;
+use Drupal\neo_build\ProjectRootInterface;
 use Drush\Commands\DrushCommands as CoreCommands;
 use Symfony\Component\Yaml\Yaml;
 
@@ -26,13 +29,6 @@ use Symfony\Component\Yaml\Yaml;
  * Drush commands for Neo Build.
  */
 class DrushCommands extends CoreCommands {
-
-  /**
-   * The doc root.
-   *
-   * @var string
-   */
-  protected $root;
 
   /**
    * {@inheritDoc}
@@ -47,6 +43,10 @@ class DrushCommands extends CoreCommands {
     private readonly NeoExtensionList $neoExtensionList,
     private readonly TwigEnvironment $twig,
     private readonly Preparer $preparer,
+    private readonly ThemeManagerInterface $themeManager,
+    private readonly ConfigFactoryInterface $configFactory,
+    private readonly CachedDiscoveryClearerInterface $pluginCacheClearer,
+    private readonly ProjectRootInterface $projectRoot,
   ) {
     parent::__construct();
   }
@@ -125,7 +125,7 @@ class DrushCommands extends CoreCommands {
       $cache_backend->deleteAll();
     }
     // Clear all plugin caches.
-    \Drupal::service('plugin.cache_clearer')->clearCachedDefinitions();
+    $this->pluginCacheClearer->clearCachedDefinitions();
     // phpcs:enable
   }
 
@@ -147,8 +147,8 @@ class DrushCommands extends CoreCommands {
       ];
     }
     // Remove scopes based on the admin theme.
-    $active_theme = \Drupal::service('theme.manager')->getActiveTheme();
-    $adminThemeName = \Drupal::config('system.theme')->get('admin');
+    $active_theme = $this->themeManager->getActiveTheme();
+    $adminThemeName = $this->configFactory->get('system.theme')->get('admin');
     if ($active_theme->getName() === $adminThemeName) {
       unset($scopes['front']);
     }
@@ -193,7 +193,7 @@ class DrushCommands extends CoreCommands {
   public function neoBuildStatus($options = ['format' => 'table']): PropertyList {
     $dev = (bool) NeoBuild::getNeoState('dev', FALSE);
     $scope = NeoBuild::getNeoState('scope', 'front');
-    $lock = file_exists($this->getRoot() . '/_neo.lock');
+    $lock = file_exists($this->projectRoot->getRoot() . '/_neo.lock');
     $up = $this->devServerAnswering();
     if ($dev && $up) {
       $status = 'DEV — assets served via HMR from the dev server (scope: ' . $scope . '). Builds are not needed for ' . $scope . ' changes; other scopes still serve stale dist/.';
@@ -249,7 +249,7 @@ class DrushCommands extends CoreCommands {
   public function neoBuildDevEnable() {
     if (!$this->neoBuildDevEnabled()) {
       NeoBuild::setNeoState('dev', TRUE);
-      $root = $this->getRoot();
+      $root = $this->projectRoot->getRoot();
 
       // Set pre-commit hook.
       $moduleDir = $this->moduleExtensionList->getPath('neo_build');
@@ -289,15 +289,14 @@ class DrushCommands extends CoreCommands {
    * @aliases neo-dev-cleanup
    */
   public function neoBuildCleanup() {
-    $root = $this->getRoot();
+    $root = $this->projectRoot->getRoot();
     $this->fileSystem->delete($root . '/.git/hooks/pre-commit');
     $this->fileSystem->delete($root . '/_neo.lock');
     $this->output()->writeln('');
     $this->output()->writeln((string) dt('<info>✔ [neo]</info> Build cleanup complete.'));
 
     // Update compiled versions.
-    $config_factory = \Drupal::configFactory();
-    $config = $config_factory->getEditable('neo_build.info');
+    $config = $this->configFactory->getEditable('neo_build.info');
     $extensions = $this->neoExtensionList->all();
     foreach ($extensions as $name => $extension) {
       $config->set('versions.' . $name, $extension->getVersion());
@@ -319,12 +318,14 @@ class DrushCommands extends CoreCommands {
    * @aliases neo-install
    */
   public function neoBuildInstall(array $options = ['claude' => FALSE]) {
-    $root = $this->getRoot();
-    if (!$root) {
+    try {
+      $root = $this->projectRoot->getRoot();
+    }
+    catch (\RuntimeException $e) {
       $this->output()->writeln((string) dt('<info>[neo]</info> Neo install failed. Could not find project root.'));
       return;
     }
-    $docRoot = $this->getDocRoot();
+    $docRoot = $this->projectRoot->getDocRoot();
     $moduleDir = $this->moduleExtensionList->getPath('neo_build');
     $files = [
       'package.json.install' => $root,
@@ -576,9 +577,7 @@ class DrushCommands extends CoreCommands {
     $baseThemePath = $baseTheme->getPath();
     $theme = $this->themeExtensionList->get($themeId);
     $themePath = $theme->getPath();
-    /** @var \Drupal\Core\File\FileSystemInterface $file_system */
-    $fileSystem = \Drupal::service('file_system');
-    $files = $fileSystem->scanDirectory($baseThemePath . '/templates', '/.*\.html.twig.example$/');
+    $files = $this->fileSystem->scanDirectory($baseThemePath . '/templates', '/.*\.html.twig.example$/');
     if (!$files) {
       $this->io()->error((string) dt('No template files found.'));
       return;
@@ -603,41 +602,9 @@ class DrushCommands extends CoreCommands {
       return;
     }
 
-    $fileSystem->prepareDirectory(dirname($destination), FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
-    $fileSystem->copy($fileUri, $destination);
+    $this->fileSystem->prepareDirectory(dirname($destination), FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS);
+    $this->fileSystem->copy($fileUri, $destination);
     $this->io()->success((string) dt('Template file @file created successfully.', ['@file' => $destination]));
-  }
-
-  /**
-   * Get the web root.
-   */
-  protected function getDocRoot() {
-    $composerData = json_decode(file_get_contents($this->getRoot() . '/composer.json'), TRUE);
-    return str_replace('./', '', NestedArray::getValue($composerData, [
-      'extra',
-      'drupal-scaffold',
-      'locations',
-      'web-root',
-    ]) ?? '/') . '/';
-  }
-
-  /**
-   * Get the docroot.
-   *
-   * @return string
-   *   The docroot.
-   */
-  private function getRoot() {
-    if (!isset($this->root)) {
-      $this->root = $this->appRoot . '/';
-      if (!file_exists($this->root . 'composer.json')) {
-        $this->root = $this->appRoot . '/../';
-        if (!file_exists($this->root . 'composer.json')) {
-          return FALSE;
-        }
-      }
-    }
-    return realpath($this->root);
   }
 
 }
