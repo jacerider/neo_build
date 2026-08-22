@@ -137,33 +137,6 @@ class NeoCss {
   }
 
   /**
-   * Convert camelCase properties in an array to kebab-case.
-   *
-   * @param array $properties
-   *   Array of properties that may contain camelCase keys.
-   *
-   * @return array
-   *   Array with kebab-case property names.
-   */
-  private function convertProperties(array $properties): array {
-    $converted = [];
-
-    foreach ($properties as $key => $value) {
-      if (is_array($value)) {
-        // This is a nested selector - recursively convert its properties.
-        $converted[$key] = $this->convertProperties($value);
-      }
-      else {
-        // Convert the property name to kebab-case.
-        $convertedKey = $this->convertPropertyName($key);
-        $converted[$convertedKey] = $value;
-      }
-    }
-
-    return $converted;
-  }
-
-  /**
    * Add an @import statement.
    *
    * @param string $url

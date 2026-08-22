@@ -19,14 +19,16 @@ use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Template\TwigEnvironment;
 use Drupal\neo_build\AnalysedExtensionResolver;
+use Drupal\neo_build\Generator\NeoJsonGenerator;
 use Drupal\neo_build\Generator\PhpstanGenerator;
+use Drupal\neo_build\Generator\TailwindCssGenerator;
+use Drupal\neo_build\Generator\TsConfigGenerator;
 use Drupal\neo_build\NeoBuild;
 use Drupal\neo_build\NeoBuildCollection;
 use Drupal\neo_build\NeoExtensionList;
 use Drush\Commands\DrushCommands as CoreCommands;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Drupal\neo_build\Event\NeoBuildEvent;
-use Drupal\neo_build\NeoCss;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -129,13 +131,21 @@ class DrushCommands extends CoreCommands {
     NeoBuild::preventAlter(FALSE);
     $this->clearLibraryDefinitions();
 
-    $this->buildTailwindCss($collection);
-
-    $this->fileSystem->saveData($collection->toNeoJson(), $root . '/neo.json', FileExists::Replace);
-    $this->fileSystem->saveData($collection->toTsJson(), $root . '/neo.tsconfig.json', FileExists::Replace);
-    $phpstan = new PhpstanGenerator($analysedExtensions, PhpstanGenerator::extensionInstallerInstalled(), $excludedExtensions);
-    if ($artifact = $phpstan->generate($collection)) {
-      $this->fileSystem->saveData($artifact->getContent(), $artifact->getDestination(), FileExists::Replace);
+    // One generator per artifact, each read-only over the collection, so the
+    // order they run in cannot change what any of them writes.
+    $generators = [
+      new NeoJsonGenerator(),
+      new TsConfigGenerator(),
+      new PhpstanGenerator($analysedExtensions, PhpstanGenerator::extensionInstallerInstalled(), $excludedExtensions),
+      new TailwindCssGenerator(),
+    ];
+    foreach ($generators as $generator) {
+      if ($artifact = $generator->generate($collection)) {
+        $this->fileSystem->saveData($artifact->getContent(), $artifact->getDestination(), FileExists::Replace);
+      }
+      elseif ($generator instanceof TailwindCssGenerator) {
+        $this->output()->writeln((string) dt('<comment>⚠ [neo]</comment> ' . TailwindCssGenerator::MISSING_PRIMARY_FILE_NOTICE));
+      }
     }
 
     $this->output()->writeln((string) dt('<info>⟢ [neo]</info> Prepare Success'));
@@ -168,89 +178,6 @@ class DrushCommands extends CoreCommands {
       return;
     }
     Cache::invalidateTags(['library_info']);
-  }
-
-  /**
-   * Builds the Tailwind CSS file.
-   *
-   * @param \Drupal\neo_build\NeoBuildCollection $collection
-   *   The Neo build collection.
-   *
-   * @throws \Exception
-   *   If the primary file is not set or if the root directory is not valid.
-   */
-  private function buildTailwindCss(NeoBuildCollection $collection) {
-    $primaryFile = $collection->getPrimaryFile();
-    $primaryDir = dirname($primaryFile);
-    $root = $collection->getRoot();
-    $docRoot = $collection->getDocRoot();
-    $neoRoot = $collection->getNeoRoot();
-    $primaryCssPath = $root . $docRoot . $primaryDir . '/tailwind.neo.css';
-    $pluginPath = $root . $docRoot . $neoRoot . 'tools/neo-tailwind-plugin.ts';
-
-    $css = new NeoCss();
-
-    // Imports.
-    $imports = array_map(fn($path) => $root . $docRoot . $path, $collection->getTailwindImports());
-    $css->addImports($imports);
-    $collection->clearTailwindImports();
-
-    // Sources.
-    $sources = array_map(fn($path) => $root . $docRoot . $path, $collection->getTailwindSources());
-    $css->addSources($sources);
-    $collection->clearTailwindSources();
-
-    // Add all CSS variables to CSS file and remove them from the collection.
-    // Anything that remains in theme will be handled at compile via our plugin.
-    foreach ($collection->getTailwindTheme() as $key => $value) {
-      if (substr($key, 0, 2) === '--' && is_string($value)) {
-        $css->addCssVariable($key, $value);
-        $collection->clearTailwindThemeItem($key);
-      }
-    }
-
-    // All base styles are added to the CSS file.
-    foreach ($collection->getTailwindBase() as $key => $value) {
-      if (substr($key, 0, 2) === '--' && is_string($value)) {
-        $css->addCssVariable($key, $value, 'base');
-      }
-      else {
-        $css->addRule($key, $value, NULL, 'base');
-      }
-    }
-    $collection->clearTailwindBase();
-
-    // All component are added to the CSS file.
-    foreach ($collection->getTailwindComponents() as $key => $value) {
-      if (substr($key, 0, 2) === '--' && is_string($value)) {
-        $css->addCssVariable($key, $value, 'components');
-      }
-      else {
-        $css->addRule($key, $value, NULL, 'components');
-      }
-    }
-    $collection->clearTailwindComponents();
-
-    foreach ($collection->getTailwindUtilities() as $key => $value) {
-      $css->addUtility($key, $value);
-    }
-    $collection->clearTailwindUtilities();
-
-    // Variants are added to the CSS file.
-    foreach ($collection->getTailwindVariants() as $name => $selectors) {
-      $css->addVariant($name, $selectors);
-    }
-    $collection->clearTailwindVariants();
-
-    $output = "/*\n";
-    $output .= " * NEO Tailwind CSS\n";
-    $output .= " * Generated by Neo Build. Do NOT edit this file directly.\n";
-    $output .= " */\n\n";
-    $output .= "/* NEO Plugin */\n";
-    $output .= "@plugin \"$pluginPath\";\n\n";
-    $output .= $css->toCss();
-
-    $this->fileSystem->saveData($output, $primaryCssPath, FileExists::Replace);
   }
 
   /**

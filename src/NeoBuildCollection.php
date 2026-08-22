@@ -129,6 +129,16 @@ class NeoBuildCollection {
   }
 
   /**
+   * Gets the host.
+   *
+   * @return string
+   *   The host.
+   */
+  public function getHost(): string {
+    return $this->neo['host'];
+  }
+
+  /**
    * Sets the port.
    *
    * @param int $port
@@ -143,6 +153,16 @@ class NeoBuildCollection {
   }
 
   /**
+   * Gets the port.
+   *
+   * @return int
+   *   The port.
+   */
+  public function getPort(): int {
+    return $this->neo['port'];
+  }
+
+  /**
    * Sets the HTTPS flag.
    *
    * @param bool $https
@@ -154,6 +174,16 @@ class NeoBuildCollection {
   public function setHttps(bool $https): self {
     $this->neo['https'] = $https;
     return $this;
+  }
+
+  /**
+   * Gets the HTTPS flag.
+   *
+   * @return bool
+   *   Whether to use HTTPS.
+   */
+  public function getHttps(): bool {
+    return $this->neo['https'];
   }
 
   /**
@@ -289,6 +319,16 @@ class NeoBuildCollection {
   }
 
   /**
+   * Gets the globs the build ignores.
+   *
+   * @return string[]
+   *   The ignored globs.
+   */
+  public function getIgnored(): array {
+    return $this->neo['ignored'];
+  }
+
+  /**
    * Adds a TypeScript include path.
    *
    * @param string $path
@@ -300,6 +340,16 @@ class NeoBuildCollection {
   public function addTsInclude(string $path): self {
     $this->ts['include'][] = $this->getRelativeRoot() . $path;
     return $this;
+  }
+
+  /**
+   * Gets the TypeScript include paths, in the order they were added.
+   *
+   * @return string[]
+   *   The include paths, each prefixed with the relative root.
+   */
+  public function getTsIncludes(): array {
+    return $this->ts['include'];
   }
 
   /**
@@ -696,6 +746,26 @@ class NeoBuildCollection {
   }
 
   /**
+   * Gets the Tailwind icon libraries.
+   *
+   * @return string[]
+   *   The icon library names, keyed by themselves.
+   */
+  public function getTailwindIconLibraries(): array {
+    return $this->neo['tailwind']['icon_libraries'] ?? [];
+  }
+
+  /**
+   * Gets the Tailwind icons.
+   *
+   * @return string[]
+   *   Icon hex values keyed by icon name.
+   */
+  public function getTailwindIcons(): array {
+    return $this->neo['tailwind']['icons'] ?? [];
+  }
+
+  /**
    * Checks if a CSS file contains Tailwind base imports.
    *
    * @param string $cssPath
@@ -721,7 +791,7 @@ class NeoBuildCollection {
    * @return $this
    *   The current instance for method chaining.
    */
-  private function setPrimaryRoot(string $path): self {
+  public function setPrimaryRoot(string $path): self {
     $this->neo['primaryRoot'] = $path;
     return $this;
   }
@@ -729,11 +799,11 @@ class NeoBuildCollection {
   /**
    * Gets the primary root path.
    *
-   * @return string
-   *   The primary root path.
+   * @return string|null
+   *   The primary root path, or NULL while no primary file has been found.
    */
-  public function getPrimaryRoot(): string {
-    return $this->neo['primaryRoot'] ?? '';
+  public function getPrimaryRoot(): ?string {
+    return $this->neo['primaryRoot'];
   }
 
   /**
@@ -745,7 +815,7 @@ class NeoBuildCollection {
    * @return $this
    *   The current instance for method chaining.
    */
-  private function setPrimaryFile(string $path): self {
+  public function setPrimaryFile(string $path): self {
     $this->neo['primaryFile'] = $path;
     return $this;
   }
@@ -753,11 +823,14 @@ class NeoBuildCollection {
   /**
    * Gets the primary file path.
    *
-   * @return string
-   *   The primary file path.
+   * The primary file is the scope's CSS entrypoint that imports "tailwindcss";
+   * the CSS artifact is written beside it.
+   *
+   * @return string|null
+   *   The primary file path, or NULL while none has been found.
    */
-  public function getPrimaryFile(): string {
-    return $this->neo['primaryFile'] ?? '';
+  public function getPrimaryFile(): ?string {
+    return $this->neo['primaryFile'];
   }
 
   /**
@@ -825,6 +898,16 @@ class NeoBuildCollection {
   }
 
   /**
+   * Gets the Vite library paths.
+   *
+   * @return string[]
+   *   The paths, keyed by library id, each prefixed with './'.
+   */
+  public function getViteLibs(): array {
+    return $this->neo['vite']['lib'] ?? [];
+  }
+
+  /**
    * Add to stylelint paths from library.
    *
    * @param \Drupal\neo_build\NeoLibrary $library
@@ -865,29 +948,13 @@ class NeoBuildCollection {
   }
 
   /**
-   * Converts the Neo configuration to JSON format.
+   * Gets the stylelint paths.
    *
-   * @return string
-   *   The Neo configuration as a JSON string.
+   * @return string[]
+   *   The paths, keyed by id, each prefixed with the relative root.
    */
-  public function toNeoJson(): string {
-    $data = $this->neo;
-    $data['tailwind']['source'] = array_values($data['tailwind']['source']);
-    $data['tailwind']['import'] = array_values($data['tailwind']['import']);
-    $data['tailwind']['icon_libraries'] = array_values($data['tailwind']['icon_libraries']);
-    $data['vite']['lib'] = array_values($data['vite']['lib']);
-    $data['stylelint'] = array_values($data['stylelint']);
-    return json_encode($data, JSON_PRETTY_PRINT);
-  }
-
-  /**
-   * Converts the TypeScript configuration to JSON format.
-   *
-   * @return string
-   *   The TypeScript configuration as a JSON string.
-   */
-  public function toTsJson(): string {
-    return json_encode($this->ts, JSON_PRETTY_PRINT);
+  public function getStylelint(): array {
+    return $this->neo['stylelint'] ?? [];
   }
 
 }
