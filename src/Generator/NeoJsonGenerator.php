@@ -14,8 +14,8 @@ use Drupal\neo_build\NeoBuildCollection;
  * Vite entrypoints, the stylelint globs, the icon data — and, under tailwind,
  * only what the partition rule leaves to it: the theme without its CSS
  * variables, and the icon libraries and icons. The CSS-owned keys — source,
- * import, base, components, utilities, variants — are emitted empty, because
- * the plugin reads exactly those keys and the stylesheet owns their content.
+ * import, components, utilities, variants — are emitted empty, because the
+ * plugin reads exactly those keys and the stylesheet owns their content.
  *
  * The partition rule replaces an ordering accident: the CSS build used to
  * drain the collection of everything the stylesheet owns before this file was
@@ -54,7 +54,6 @@ final class NeoJsonGenerator implements ArtifactGeneratorInterface {
       'tailwind' => [
         'source' => [],
         'import' => [],
-        'base' => [],
         'theme' => $theme,
         'utilities' => [],
         'components' => [],

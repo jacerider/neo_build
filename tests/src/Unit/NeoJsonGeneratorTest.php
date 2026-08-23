@@ -54,7 +54,7 @@ class NeoJsonGeneratorTest extends UnitTestCase {
 
     $data = json_decode((new NeoJsonGenerator())->generate($collection)->getContent(), TRUE);
 
-    foreach (['source', 'import', 'base', 'components', 'utilities', 'variants'] as $key) {
+    foreach (['source', 'import', 'components', 'utilities', 'variants'] as $key) {
       $this->assertSame([], $data['tailwind'][$key], "tailwind.$key is emitted empty");
     }
     $this->assertArrayNotHasKey('--color-brand', $data['tailwind']['theme']);
@@ -96,7 +96,7 @@ class NeoJsonGeneratorTest extends UnitTestCase {
       'primaryFile', 'scope', 'ignored', 'tailwind', 'vite', 'stylelint',
     ], array_keys($data));
     $this->assertSame([
-      'source', 'import', 'base', 'theme', 'utilities', 'components', 'variants',
+      'source', 'import', 'theme', 'utilities', 'components', 'variants',
       'icon_libraries', 'icons',
     ], array_keys($data['tailwind']));
 

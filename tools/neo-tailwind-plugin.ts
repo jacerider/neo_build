@@ -41,7 +41,7 @@ const processData = (layer, theme) => {
 let neo;
 
 export default plugin.withOptions(
-  ({ isMain = false, neoPath = './neo.json' }: any = {}) => {
+  ({ neoPath = './neo.json' }: any = {}) => {
     const fullNeoPath = path.isAbsolute(neoPath)
       ? neoPath
       // @ts-ignore
@@ -56,12 +56,7 @@ export default plugin.withOptions(
       throw new Error(`Invalid JSON in sources config file ${fullNeoPath}: ${parseError.message}`);
     }
 
-    return function({ addBase, addUtilities, addComponents, addVariant, theme }) {
-      if (isMain) {
-        const base = processData(JSON.parse(JSON.stringify(neo.tailwind.base)), theme);
-        addBase(base);
-      }
-
+    return function({ addUtilities, addComponents, addVariant, theme }) {
       const utilities = processData(JSON.parse(JSON.stringify(neo.tailwind.utilities)), theme);
       addUtilities(utilities);
 

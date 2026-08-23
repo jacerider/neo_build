@@ -39,7 +39,6 @@ class NeoBuildCollection {
     'tailwind' => [
       'source' => [],
       'import' => [],
-      'base' => [],
       'theme' => [
         'extend' => [],
         'colors' => [],
