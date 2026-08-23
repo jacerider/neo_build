@@ -452,6 +452,25 @@ neo:
       line-height: 1.5rem
 ```
 
+**An extension's `neo:` block offers four Tailwind sections**, and only these
+four reach the build:
+
+ * `theme:` — custom properties and theme configuration;
+ * `components:` — rules emitted into `@layer components`;
+ * `utilities:` — rules emitted as top-level `@utility` definitions;
+ * `variants:` — `@custom-variant` definitions.
+
+Prepare dispatches each one by name. **`base:` is retired.** It used to feed a
+base layer that no longer exists, and a declaration under it reached nothing
+whether or not it was honoured. Prepare now names it in a warning and drops it,
+and the build still succeeds — no compiled byte changes either way. Move the
+declarations: **custom properties into `theme:`, rules into `components:`.**
+
+**Unknown `neo:` keys are still ignored without comment.** Only the retired
+section is reported. A warning on any unrecognised key would need a validated
+vocabulary for the whole `neo:` block, and without one it would fire on every
+typo and on `group:`, which `neo_base` declares on every site.
+
 **Tailwind data in an info file is flat.** A rule is a map of kebab-case CSS
 property names to values, plus the `apply` key, whose value is emitted as
 written. Two forms are refused outright, and the build fails naming the

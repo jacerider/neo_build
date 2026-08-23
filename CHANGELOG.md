@@ -1,5 +1,42 @@
 # Changelog
 
+## A retired `base:` section is reported instead of silently dropped
+
+`neo_build` used to accept base-layer Tailwind data two ways: a subscriber
+calling `addTailwindBase()`, and a `base:` block in an extension's `neo:` info
+section. The first was removed with the base layer itself. **The second
+survived it**, and did nothing: prepare dispatched each section by building a
+method name and testing it with `method_exists()`, so with the method gone the
+test was false, the declaration was discarded, and prepare reported success. An
+author who wrote `neo: base:` got no warning, no failure and no styling.
+
+**Prepare now names it.** A `base:` block raises a notice carrying the extension
+and the key, and saying where the declarations go instead — **custom properties
+into `theme:`, rules into `components:`**. The build still succeeds, and it
+still compiles exactly the same bytes: the key emitted nothing whether it was
+honoured or dropped, so reporting it costs nothing and changes nothing on any
+site. Nothing throws. This package refuses what would emit wrong CSS onto a
+live site, and warns about what merely reaches nothing; a `base:` block is the
+second kind.
+
+**Only the retired section is reported.** Unknown `neo:` keys — typos, and the
+vestigial `group:` — are still ignored without comment.
+
+**`base` is gone from the wire format too.** It no longer appears in the
+collection's default Tailwind data or in the `tailwind` object of `neo.json`,
+and `tools/neo-tailwind-plugin.ts` has lost its `addBase()` call, the `addBase`
+callback parameter, and the `isMain` option that existed only to gate it. That
+branch had never executed anywhere: the `@plugin` line is generated and passes
+no options, so `isMain` was false on every site, and `addBase({})` is a no-op.
+The plugin's `neoPath` option is untouched. Producer and consumer moved
+together, so no branch is left reaching for a key that is gone.
+
+**Prepare dispatches the four sections by name.** `theme`, `components`,
+`utilities` and `variants` are now four explicit calls rather than a built
+method name, and `method_exists()` has left the module. The next collection
+method removed breaks a call site instead of quietly ceasing to be called —
+which is exactly how `base` outlived the layer it fed.
+
 ## Component and utility entries are refused unless they name a selector
 
 Up to **1.0.65**, a `--` key in component data was recognised and forwarded to
