@@ -7,7 +7,6 @@ namespace Drupal\neo_build;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\State\StateInterface;
-use Drupal\Core\Theme\ThemeManagerInterface;
 
 /**
  * Rewrites libraries to work with vite.
@@ -33,14 +32,6 @@ class NeoBuild {
   public const SCOPE_STATE_KEY = self::STATE_PREFIX . 'scope';
 
   /**
-   * The Vite manifest.
-   *
-   * @var \Drupal\neo_build\NeoManifest
-   *   The Vite manifest.
-   */
-  private NeoManifest $manifest;
-
-  /**
    * Whether this service is suspending the render-time library rewrite.
    *
    * An instance flag rather than a static one: prepare toggles it through the
@@ -53,9 +44,9 @@ class NeoBuild {
    * Constructs the Vite service object.
    */
   public function __construct(
-    private readonly ThemeManagerInterface $themeManager,
     private readonly NeoExtensionList $neoExtensionList,
     private readonly StateInterface $state,
+    private readonly ManifestResolver $manifestResolver,
   ) {
   }
 
@@ -66,9 +57,6 @@ class NeoBuild {
     if ($this->preventAlter === TRUE) {
       return;
     }
-    $theme = $this->themeManager->getActiveTheme();
-    $distPath = $theme->getPath() . '/dist';
-    $this->manifest = new NeoManifest($distPath . '/manifest.json', $distPath);
 
     if ($extension === 'core' && $this->isDevMode()) {
       // When in DEV mode, we need to override the add_js method in core ajax.
@@ -198,13 +186,14 @@ class NeoBuild {
       'css' => NULL,
       'js' => NULL,
     ];
+    $scopes = $neoLibrary->getScope();
     if ($cssPath = $neoLibrary->getCssPath()) {
-      if ($distPath = $this->manifest->getDistPath($cssPath)) {
+      if ($distPath = $this->manifestResolver->resolve($cssPath, $scopes)) {
         $rewrites['css']['path'] = $distPath;
       }
     }
     if ($jsPath = $neoLibrary->getJsPath()) {
-      if ($distPath = $this->manifest->getDistPath($jsPath)) {
+      if ($distPath = $this->manifestResolver->resolve($jsPath, $scopes)) {
         $rewrites['js']['path'] = $distPath;
         // Deliberately loaded as a classic script, unlike
         // rewriteLibraryForDev() where the Vite dev server serves real ES

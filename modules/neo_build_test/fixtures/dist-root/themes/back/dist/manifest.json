@@ -1,0 +1,6 @@
+{
+  "%extension%/src/css/neoBuildTestShared.css": {
+    "file": "css/neoBuildTestShared.back.css",
+    "src": "%extension%/src/css/neoBuildTestShared.css"
+  }
+}

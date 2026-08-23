@@ -1,7 +1,7 @@
 services:
   neo_build:
     class: Drupal\neo_build\NeoBuild
-    arguments: ['@theme.manager', '@extension.list.neo', '@state']
+    arguments: ['@extension.list.neo', '@state', '@neo_build.manifest_resolver']
 
   logger.channel.neo_build:
     parent: logger.channel_base

@@ -1,0 +1,11 @@
+/**
+ * Kernel-test fixture: the entrypoint of a library declared in both scopes.
+ *
+ * Deliberately distinct from the `missing` library's entrypoint, which is
+ * absent from disk on purpose so PreparerTest can exercise the missing-
+ * entrypoint path. This one exists, because the resolution tests need a
+ * both-scopes library that actually resolves.
+ */
+.neo-build-test-shared {
+  display: block;
+}

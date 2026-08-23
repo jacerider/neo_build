@@ -5,18 +5,20 @@ declare(strict_types=1);
 namespace Drupal\Tests\neo_build\Unit;
 
 use Drupal\Core\Asset\LibraryDiscoveryParser;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandler;
 use Drupal\Core\Extension\ThemeExtensionList;
 use Drupal\Core\State\StateInterface;
-use Drupal\Core\Theme\ActiveTheme;
 use Drupal\Core\Theme\ThemeManagerInterface;
+use Drupal\neo_build\ManifestResolver;
 use Drupal\neo_build\NeoBuild;
 use Drupal\neo_build\NeoExtensionList;
 use Drupal\neo_build\Preparer;
 use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\Group;
+use Psr\Log\LoggerInterface;
 
 /**
  * Pins that NeoBuild owns its state by injection and holds nothing statically.
@@ -274,12 +276,6 @@ class NeoBuildStateTest extends UnitTestCase {
    * Builds the service under test over the in-memory state.
    */
   protected function neoBuild(): NeoBuild {
-    $activeTheme = $this->createMock(ActiveTheme::class);
-    $activeTheme->method('getPath')->willReturn('themes/front');
-
-    $themeManager = $this->createMock(ThemeManagerInterface::class);
-    $themeManager->method('getActiveTheme')->willReturn($activeTheme);
-
     // NeoExtensionList is final, so it is built over doubled collaborators
     // rather than doubled itself. Nothing in these tests reaches it: the
     // preventAlter guard returns first.
@@ -290,10 +286,20 @@ class NeoBuildStateTest extends UnitTestCase {
       $this->createMock(LibraryDiscoveryParser::class),
     );
 
+    // ManifestResolver is final too, and the preventAlter guard means nothing
+    // here ever asks it anything.
+    $manifestResolver = new ManifestResolver(
+      $this->createMock(ThemeManagerInterface::class),
+      $this->createMock(ThemeExtensionList::class),
+      $this->createMock(ConfigFactoryInterface::class),
+      $this->createMock(LoggerInterface::class),
+      sys_get_temp_dir(),
+    );
+
     return new NeoBuild(
-      $themeManager,
       $neoExtensionList,
       $this->state,
+      $manifestResolver,
     );
   }
 

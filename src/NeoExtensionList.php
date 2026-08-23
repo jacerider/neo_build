@@ -101,15 +101,20 @@ final class NeoExtensionList {
    * @return \Drupal\neo_build\NeoLibrary|null
    *   The NeoLibrary object, or NULL if the library is not Neo-enabled.
    */
-  public function getLibrary(string $extension, string $libraryName, array $library) {
-    if (!empty($library['neo'])) {
-      if ($neoExtension = $this->loadExtension($extension)) {
-        $library = $this->processLibrary($neoExtension->getPath(), $library);
-        $neoLibrary = new NeoLibrary($neoExtension, $libraryName, $library);
-        $neoExtension->setLibrary($libraryName, $neoLibrary);
-        return $neoLibrary;
-      }
+  public function getLibrary(string $extension, string $libraryName, array $library): ?NeoLibrary {
+    if (empty($library['neo'])) {
+      // Not a Neo library; there is nothing to rewrite.
+      return NULL;
     }
+    $neoExtension = $this->loadExtension($extension);
+    if (!$neoExtension) {
+      // The library declares `neo:` but its extension is not a Neo extension.
+      return NULL;
+    }
+    $library = $this->processLibrary($neoExtension->getPath(), $library);
+    $neoLibrary = new NeoLibrary($neoExtension, $libraryName, $library);
+    $neoExtension->setLibrary($libraryName, $neoLibrary);
+    return $neoLibrary;
   }
 
   /**

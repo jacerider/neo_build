@@ -36,3 +36,14 @@ missing:
   css:
     component:
       src/css/neoBuildTestMissing.css: {}
+
+# Both scopes, with an entrypoint that exists on disk. Used to prove a
+# both-scopes library still resolves against the *active* scope's manifest.
+# The `missing` library above cannot serve this purpose: its entrypoint is
+# absent by design.
+shared:
+  version: VERSION
+  neo: true
+  css:
+    component:
+      src/css/neoBuildTestShared.css: {}

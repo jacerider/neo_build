@@ -1,0 +1,14 @@
+{
+  "%extension%/src/css/neoBuildTestFront.css": {
+    "file": "css/neoBuildTestFront.front.css",
+    "src": "%extension%/src/css/neoBuildTestFront.css"
+  },
+  "%extension%/src/js/neoBuildTestFront.ts": {
+    "file": "js/neoBuildTestFront.front.js",
+    "src": "%extension%/src/js/neoBuildTestFront.ts"
+  },
+  "%extension%/src/css/neoBuildTestShared.css": {
+    "file": "css/neoBuildTestShared.front.css",
+    "src": "%extension%/src/css/neoBuildTestShared.css"
+  }
+}
