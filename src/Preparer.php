@@ -42,13 +42,16 @@ class Preparer {
 
   /**
    * The state key under which the prepared scope is recorded.
+   *
+   * Aliases NeoBuild's constant rather than repeating the string: the key is
+   * spelled once, and the pair cannot drift apart.
    */
-  public const SCOPE_STATE_KEY = 'neo.build.scope';
+  public const SCOPE_STATE_KEY = NeoBuild::SCOPE_STATE_KEY;
 
   /**
    * The state key carrying the DEV flag.
    */
-  public const DEV_STATE_KEY = 'neo.build.dev';
+  public const DEV_STATE_KEY = NeoBuild::DEV_STATE_KEY;
 
   /**
    * The cache tag a prepare invalidates.
@@ -77,6 +80,9 @@ class Preparer {
    *   The event dispatcher.
    * @param \Drupal\neo_build\NeoExtensionList $neoExtensionList
    *   The Neo extension list.
+   * @param \Drupal\neo_build\NeoBuild $neoBuild
+   *   The build service, through which the render-time library rewrite is
+   *   suspended for the duration of a prepare.
    * @param \Drupal\neo_build\AnalysedExtensionResolver $analysedExtensionResolver
    *   The analysed-extension resolver.
    * @param \Drupal\neo_build\ProjectRootInterface $projectRoot
@@ -96,6 +102,7 @@ class Preparer {
     private readonly LibraryDiscoveryInterface $libraryDiscovery,
     private readonly EventDispatcherInterface $eventDispatcher,
     private readonly NeoExtensionList $neoExtensionList,
+    private readonly NeoBuild $neoBuild,
     private readonly AnalysedExtensionResolver $analysedExtensionResolver,
     private readonly ProjectRootInterface $projectRoot,
     private readonly FileSystemInterface $fileSystem,
@@ -137,7 +144,7 @@ class Preparer {
     $docRoot = $this->projectRoot->getDocRoot();
 
     $this->clearLibraryDefinitions();
-    NeoBuild::preventAlter();
+    $this->neoBuild->preventAlter();
 
     $collection = new NeoBuildCollection(
       NeoBuild::getNeoSetting('host'),
@@ -164,7 +171,7 @@ class Preparer {
     $event = new NeoBuildEvent($collection, $scopedExtensions);
     $this->eventDispatcher->dispatch($event, NeoBuildEvent::EVENT_NAME);
 
-    NeoBuild::preventAlter(FALSE);
+    $this->neoBuild->preventAlter(FALSE);
     $this->clearLibraryDefinitions();
 
     // One generator per artifact, each read-only over the collection, so the

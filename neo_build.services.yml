@@ -1,7 +1,7 @@
 services:
   neo_build:
     class: Drupal\neo_build\NeoBuild
-    arguments: ['@theme.manager', '@extension.list.neo']
+    arguments: ['@theme.manager', '@extension.list.neo', '@state']
 
   neo_build.inline_css_generator:
     class: Drupal\neo_build\NeoInlineCssGenerator
@@ -32,6 +32,7 @@ services:
       - '@library.discovery'
       - '@event_dispatcher'
       - '@extension.list.neo'
+      - '@neo_build'
       - '@neo_build.analysed_extension_resolver'
       - '@neo_build.project_root'
       - '@file_system'
