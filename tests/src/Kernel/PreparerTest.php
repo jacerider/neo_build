@@ -296,4 +296,85 @@ class PreparerTest extends KernelTestBase {
     $this->assertContains(Preparer::BUILD_CACHE_TAG, $invalidator->invalidated);
   }
 
+  /**
+   * A camelCase property name fails the prepare, naming who declared it.
+   *
+   * The fixture is installed here rather than in $modules on purpose: it
+   * carries a declaration every other assertion in this class would fail on.
+   */
+  public function testRefusesCamelCasePropertyNameAndNamesTheExtension(): void {
+    $this->installTheme();
+    $this->container->get('module_installer')->install(['neo_build_test_camel']);
+
+    try {
+      $this->preparer()->prepare('front');
+      $this->fail('Expected prepare to fail on the camelCase property name.');
+    }
+    catch (\InvalidArgumentException $e) {
+      $this->assertStringContainsString('neo_build_test_camel', $e->getMessage());
+      $this->assertStringContainsString('.neo-build-test-camel', $e->getMessage());
+      $this->assertStringContainsString('borderRadius', $e->getMessage());
+    }
+  }
+
+  /**
+   * An array value fails the prepare, naming who declared it.
+   */
+  public function testRefusesAnArrayValueAndNamesTheExtension(): void {
+    $this->installTheme();
+    $this->container->get('module_installer')->install(['neo_build_test_nested']);
+
+    try {
+      $this->preparer()->prepare('front');
+      $this->fail('Expected prepare to fail on the array value.');
+    }
+    catch (\InvalidArgumentException $e) {
+      $this->assertStringContainsString('neo_build_test_nested', $e->getMessage());
+      $this->assertStringContainsString('.neo-build-test-nested', $e->getMessage());
+      $this->assertStringContainsString('&:hover', $e->getMessage());
+    }
+  }
+
+  /**
+   * The refusal says what to do about it.
+   *
+   * The question the message will prompt is "then where does this rule go",
+   * so the message answers it rather than leaving the reader to the README.
+   */
+  public function testTheRefusalCarriesTheRemedy(): void {
+    $this->installTheme();
+    $this->container->get('module_installer')->install(['neo_build_test_camel']);
+
+    try {
+      $this->preparer()->prepare('front');
+      $this->fail('Expected prepare to fail on the camelCase property name.');
+    }
+    catch (\InvalidArgumentException $e) {
+      $this->assertStringContainsString('kebab-case', $e->getMessage());
+      $this->assertStringContainsString('import entrypoint', $e->getMessage());
+    }
+  }
+
+  /**
+   * Prepare fails rather than completing with a notice.
+   *
+   * A warning is what produced the situation this rule undoes: a green build
+   * shipping form controls with no styling. Nothing is written either.
+   */
+  public function testPrepareFailsRatherThanCompletingWithNotice(): void {
+    $this->installTheme();
+    $this->container->get('module_installer')->install(['neo_build_test_camel']);
+
+    $threw = FALSE;
+    try {
+      $this->preparer()->prepare('front');
+    }
+    catch (\InvalidArgumentException $e) {
+      $threw = TRUE;
+    }
+
+    $this->assertTrue($threw, 'Prepare must fail on a refused declaration.');
+    $this->assertFileDoesNotExist($this->root . '/neo.json');
+  }
+
 }

@@ -19,6 +19,7 @@ use Drupal\neo_build\Generator\Artifact;
 use Drupal\neo_build\Generator\NeoJsonGenerator;
 use Drupal\neo_build\Generator\PhpstanGenerator;
 use Drupal\neo_build\Generator\TailwindCssGenerator;
+use Drupal\neo_build\Generator\TailwindStylesheet;
 use Drupal\neo_build\Generator\TsConfigGenerator;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
@@ -229,6 +230,7 @@ class Preparer {
       $collection->addTailwindSource($name . ':Twig', $path . '/templates/**/*.twig');
     }
     foreach ($extension->getTailwindInfo() as $key => $data) {
+      $this->assertFlatTailwindData($name, $key, $data);
       $method = 'addTailwind' . ucfirst($key);
       if (method_exists($collection, $method)) {
         $collection->$method($data);
@@ -238,6 +240,57 @@ class Preparer {
     foreach ($extension->getLibraries() as $library) {
       $this->addViteLibFromLibrary($library, $collection, $result);
       $this->addStylelintFromLibrary($library, $collection);
+    }
+  }
+
+  /**
+   * Asserts one extension's info-file Tailwind rules are flat, naming it.
+   *
+   * The same rule the stylesheet enforces, applied one step earlier so the
+   * refusal can say whose file to open. `TailwindStylesheet::addRule()` is the
+   * last gate and stays that way — it catches a build event subscriber, which
+   * no extension name describes — but it runs from
+   * `TailwindCssGenerator::generate()`, by which point every extension has
+   * been read into the collection and gone out of scope. Here the extension
+   * is still in hand.
+   *
+   * Only `components` and `utilities` carry rules. `theme` is custom
+   * properties, `variants` is a selector list, and `base` is dropped by the
+   * collection; none of them is a selector-to-properties map, so none is
+   * checked here.
+   *
+   * @param string $extension
+   *   The extension whose info file declared the data.
+   * @param string $key
+   *   The `neo:` key the data came from.
+   * @param array $data
+   *   The data: for a rule-carrying key, selectors to properties.
+   *
+   * @throws \InvalidArgumentException
+   *   If a rule is not flat, with the extension named in front of the
+   *   stylesheet's own message.
+   */
+  protected function assertFlatTailwindData(string $extension, string $key, array $data): void {
+    if ($key !== 'components' && $key !== 'utilities') {
+      return;
+    }
+
+    foreach ($data as $selector => $properties) {
+      if (!is_array($properties)) {
+        continue;
+      }
+
+      try {
+        TailwindStylesheet::assertFlatDeclarations((string) $selector, $properties);
+      }
+      catch (\InvalidArgumentException $e) {
+        throw new \InvalidArgumentException(sprintf(
+          'The extension "%s" declares Tailwind data that is not flat, under "neo: %s:". %s',
+          $extension,
+          $key,
+          $e->getMessage(),
+        ), $e->getCode(), $e);
+      }
     }
   }
 
