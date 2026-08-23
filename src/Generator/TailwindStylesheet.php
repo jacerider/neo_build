@@ -167,28 +167,6 @@ class TailwindStylesheet {
   private array $variants = [];
 
   /**
-   * Convert camelCase property names to kebab-case.
-   *
-   * @param string $property
-   *   The property name that may be in camelCase.
-   *
-   * @return string
-   *   The property name converted to kebab-case.
-   */
-  private function convertPropertyName(string $property): string {
-    // If it's already kebab-case or contains special characters, return as-is.
-    if (strpos($property, '-') !== FALSE ||
-        strpos($property, ':') !== FALSE ||
-        strpos($property, '&') !== FALSE ||
-        str_starts_with($property, '--')) {
-      return $property;
-    }
-
-    // Convert camelCase to kebab-case.
-    return strtolower(preg_replace('/([a-z])([A-Z])/', '$1-$2', $property));
-  }
-
-  /**
    * Add an @import statement.
    *
    * @param string $url
@@ -292,64 +270,6 @@ class TailwindStylesheet {
   }
 
   /**
-   * Process properties to separate regular properties from nested selectors.
-   *
-   * @param array $properties
-   *   The properties array that may contain nested selectors.
-   *
-   * @return array
-   *   Array with 'properties' and 'nestedRules' keys.
-   */
-  private function processNestedProperties(array $properties): array {
-    $regularProperties = [];
-    $nestedRules = [];
-
-    foreach ($properties as $key => $value) {
-      if (is_array($value)) {
-        // This is a nested selector - keep the original selector format.
-        $nestedSelector = $this->normalizeNestedSelector($key);
-        $nestedResult = $this->processNestedProperties($value);
-
-        // Add the nested rule with its nested structure preserved.
-        $nestedRules[] = [
-          'selector' => $nestedSelector,
-          'properties' => $nestedResult['properties'],
-          'nestedRules' => $nestedResult['nestedRules'],
-        ];
-      }
-      else {
-        // This is a regular CSS property - convert camelCase to kebab-case.
-        $convertedKey = $this->convertPropertyName($key);
-        $regularProperties[$convertedKey] = $value;
-      }
-    }
-
-    return [
-      'properties' => $regularProperties,
-      'nestedRules' => $nestedRules,
-    ];
-  }
-
-  /**
-   * Normalize nested selector format.
-   *
-   * @param string $nestedSelector
-   *   The nested selector.
-   *
-   * @return string
-   *   The normalized selector.
-   */
-  private function normalizeNestedSelector(string $nestedSelector): string {
-    // If selector doesn't start with & and is a pseudo-class/element, add &.
-    if (str_starts_with($nestedSelector, ':')) {
-      return '&' . $nestedSelector;
-    }
-
-    // Otherwise return as-is.
-    return $nestedSelector;
-  }
-
-  /**
    * Add a utility class.
    *
    * @param string $selector
@@ -428,18 +348,13 @@ class TailwindStylesheet {
   public function addRule(string $selector, array $properties, ?string $layer = NULL): self {
     self::assertFlatDeclarations($selector, $properties);
 
-    // Process nested properties (this also handles camelCase conversion).
-    $processed = $this->processNestedProperties($properties);
-
-    // Create rule with nested structure preserved.
     $rule = [
       'selector' => $selector,
-      'properties' => $processed['properties'],
-      'nestedRules' => $processed['nestedRules'],
+      'properties' => $properties,
       'weight' => 0,
     ];
 
-    if (isset($processed['properties']['apply'])) {
+    if (isset($properties['apply'])) {
       $rule['weight'] = self::APPLY_WEIGHT;
     }
 
@@ -452,7 +367,7 @@ class TailwindStylesheet {
    * Add a rule to the appropriate storage location.
    *
    * @param array $rule
-   *   The rule array with selector, properties, and possibly nestedRules.
+   *   The rule array with selector, properties and weight.
    * @param string|null $layer
    *   The components layer, or NULL for a top-level rule.
    *
@@ -461,11 +376,6 @@ class TailwindStylesheet {
    *   top level instead would silently move the rule out of its layer.
    */
   private function addRuleToStorage(array $rule, ?string $layer = NULL): void {
-    // Ensure nestedRules key exists for consistency.
-    if (!isset($rule['nestedRules'])) {
-      $rule['nestedRules'] = [];
-    }
-
     if ($layer === NULL) {
       $this->rules[] = $rule;
       return;
@@ -518,7 +428,11 @@ class TailwindStylesheet {
   }
 
   /**
-   * Format a single CSS rule with nested rules.
+   * Format a single CSS rule.
+   *
+   * One rule, one level. A rule's properties are flat, so there is nothing to
+   * descend into; `$baseIndent` exists for the rule's own position, which is
+   * one level in when it sits inside `@layer components`.
    *
    * @param array $rule
    *   The CSS rule to format.
@@ -531,7 +445,6 @@ class TailwindStylesheet {
   private function formatRule(array $rule, string $baseIndent = ''): string {
     $css = $baseIndent . $rule['selector'] . " {\n";
 
-    // Add regular properties first.
     foreach ($rule['properties'] as $property => $value) {
       $value = (string) $value;
       if ($property === 'apply') {
@@ -546,13 +459,6 @@ class TailwindStylesheet {
         $css .= ';';
       }
       $css .= "\n";
-    }
-
-    // Add nested rules if they exist.
-    if (!empty($rule['nestedRules'])) {
-      foreach ($rule['nestedRules'] as $nestedRule) {
-        $css .= $this->formatRule($nestedRule, $baseIndent . self::INDENT);
-      }
     }
 
     $css .= $baseIndent . "}\n";

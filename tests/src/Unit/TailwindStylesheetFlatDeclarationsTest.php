@@ -105,6 +105,59 @@ class TailwindStylesheetFlatDeclarationsTest extends UnitTestCase {
   }
 
   /**
+   * The conversion machinery is gone, not merely unreachable.
+   *
+   * Nothing can reach these once the refusal is in place, so what is left to
+   * assert is that they were removed rather than left to be found and called
+   * again by whoever reads the class next.
+   */
+  public function testTheConversionMethodsAreGone(): void {
+    foreach (['convertPropertyName', 'processNestedProperties', 'normalizeNestedSelector'] as $method) {
+      $this->assertFalse(
+        method_exists(TailwindStylesheet::class, $method),
+        sprintf('TailwindStylesheet::%s() should have been deleted.', $method),
+      );
+    }
+  }
+
+  /**
+   * A stored rule carries no nested rules, so formatRule() cannot recurse.
+   *
+   * Read off the stored rule rather than the emitted CSS: with arrays refused
+   * there is no input that would make a nested rule visible in the output, so
+   * the storage is where the removal shows.
+   */
+  public function testAddRuleStoresNoNestedRules(): void {
+    $css = new TailwindStylesheet();
+    $css->addRule('.btn', ['display' => 'inline-block']);
+
+    $rules = new \ReflectionProperty(TailwindStylesheet::class, 'rules');
+    $stored = $rules->getValue($css);
+
+    $this->assertCount(1, $stored);
+    $this->assertArrayNotHasKey('nestedRules', $stored[0]);
+  }
+
+  /**
+   * A property name reaches the emitted CSS verbatim; nothing rewrites one.
+   */
+  public function testPropertyNamesAreEmittedVerbatim(): void {
+    $css = new TailwindStylesheet();
+    $css->addRule('.mixed', [
+      'display' => 'block',
+      '-webkit-font-smoothing' => 'antialiased',
+      '--tw-Ring' => 'red',
+      'border-radius' => '4px',
+    ]);
+
+    $out = $css->toCss();
+    $this->assertStringContainsString('display: block;', $out);
+    $this->assertStringContainsString('-webkit-font-smoothing: antialiased;', $out);
+    $this->assertStringContainsString('--tw-Ring: red;', $out);
+    $this->assertStringContainsString('border-radius: 4px;', $out);
+  }
+
+  /**
    * Flat data still passes, `apply` included.
    */
   public function testAcceptsFlatDeclarations(): void {
