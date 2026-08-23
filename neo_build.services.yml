@@ -3,6 +3,19 @@ services:
     class: Drupal\neo_build\NeoBuild
     arguments: ['@theme.manager', '@extension.list.neo', '@state']
 
+  logger.channel.neo_build:
+    parent: logger.channel_base
+    arguments: ['neo_build']
+
+  neo_build.manifest_resolver:
+    class: Drupal\neo_build\ManifestResolver
+    arguments:
+      - '@theme.manager'
+      - '@extension.list.theme'
+      - '@config.factory'
+      - '@logger.channel.neo_build'
+      - '%app.root%'
+
   neo_build.inline_css_generator:
     class: Drupal\neo_build\NeoInlineCssGenerator
     arguments: ['@event_dispatcher', '@file_system', '@state', '@neo_build']
