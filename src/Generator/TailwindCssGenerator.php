@@ -60,12 +60,14 @@ final class TailwindCssGenerator implements ArtifactGeneratorInterface {
     }
     // Component data is rules only. A `--` key here would have to be emitted
     // as a bare declaration inside `@layer components`, which is not valid
-    // CSS; custom properties belong in the theme, which the loop above routes
-    // to the stylesheet's `@theme` block.
+    // CSS; the loop above reads the theme section, so a `--` key arriving in
+    // component data is routed nowhere at all, and is refused below.
     foreach ($collection->getTailwindComponents() as $key => $value) {
+      self::assertSelectorKey('components', $key, $value);
       $css->addRule($key, $value, 'components');
     }
     foreach ($collection->getTailwindUtilities() as $key => $value) {
+      self::assertSelectorKey('utilities', $key, $value);
       $css->addUtility($key, $value);
     }
     foreach ($collection->getTailwindVariants() as $name => $selectors) {
@@ -81,6 +83,69 @@ final class TailwindCssGenerator implements ArtifactGeneratorInterface {
     $output .= $css->toCss();
 
     return new Artifact($absolute(dirname($primaryFile) . '/' . self::FILENAME), $output);
+  }
+
+  /**
+   * Asserts one component or utility entry against the selector-key rule.
+   *
+   * The rule: an entry is a **string** key naming a CSS selector, mapped to an
+   * **array** of declarations. Three shapes break it, and each was a fatal or
+   * a silent miss before this gate existed — a non-string key from a
+   * list-shaped contribution, a `--` key naming a custom property rather than
+   * a selector, and a value that is not an array.
+   *
+   * Nothing **inside** the declarations array is inspected here. Custom
+   * properties are legal there and illegal in key position: neo_color
+   * contributes fourteen `--tw-prose-*` declarations in one entry on every
+   * site, and a guard that walked into the array would break prose styling
+   * under every scheme. The declarations themselves are
+   * TailwindStylesheet::assertFlatDeclarations()'s business.
+   *
+   * The refusal does not name the extension, deliberately. The generators run
+   * on the merged collection, where provenance is gone —
+   * NeoBuildCollection::addTailwindComponents() takes no id — so the key is
+   * what finds the culprit, and it is a literal string to grep for.
+   *
+   * @param string $section
+   *   The section the entry arrived in: 'components' or 'utilities'. Named in
+   *   the message because it says which half of an info file to open.
+   * @param mixed $key
+   *   The entry's key, exactly as it arrived.
+   * @param mixed $value
+   *   The entry's value, exactly as it arrived.
+   *
+   * @throws \InvalidArgumentException
+   *   If the entry breaks the selector-key rule. Prepare is a fatal step, so
+   *   this ends the build with a failure report rather than warning and
+   *   dropping the entry.
+   */
+  private static function assertSelectorKey(string $section, mixed $key, mixed $value): void {
+    if (!is_string($key)) {
+      throw new \InvalidArgumentException(sprintf(
+        'Tailwind %s data has an entry keyed "%s", which is not a string: an entry is a CSS selector mapped to an array of declarations. This is a list-shaped contribution; give the entry a selector.',
+        $section,
+        (string) $key,
+      ));
+    }
+
+    if (str_starts_with($key, '--')) {
+      throw new \InvalidArgumentException(sprintf(
+        'Tailwind %s data has "%s" in selector position: an entry is a CSS selector mapped to an array of declarations, and "%s" names a custom property. Move it into a rule\'s declarations, or into the extension\'s `theme:` section. The key is a literal string: grep for it to find the extension that contributes it.',
+        $section,
+        $key,
+        $key,
+      ));
+    }
+
+    if (!is_array($value)) {
+      throw new \InvalidArgumentException(sprintf(
+        'Tailwind %s data gives "%s" a value of type %s: an entry is a CSS selector mapped to an array of declarations. Give "%s" an array of declarations. The key is a literal string: grep for it to find the extension that contributes it.',
+        $section,
+        $key,
+        get_debug_type($value),
+        $key,
+      ));
+    }
   }
 
 }

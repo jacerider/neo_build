@@ -140,4 +140,180 @@ class TailwindCssGeneratorTest extends UnitTestCase {
     $this->assertStringContainsString('primary', TailwindCssGenerator::MISSING_PRIMARY_FILE_NOTICE);
   }
 
+  /**
+   * Builds a collection with a primary file and one section's data.
+   *
+   * The entry arrives exactly as an extension contributes it, so a list-shaped
+   * contribution keeps the integer key `foreach` will yield.
+   *
+   * @param string $section
+   *   The section the data belongs to: 'components' or 'utilities'.
+   * @param array $data
+   *   The section data.
+   *
+   * @return \Drupal\neo_build\NeoBuildCollection
+   *   The collection.
+   */
+  protected function withEntry(string $section, array $data): NeoBuildCollection {
+    $collection = $this->collection();
+    $collection->setPrimaryRoot('themes/front');
+    $collection->setPrimaryFile('themes/front/src/css/main.css');
+
+    if ($section === 'components') {
+      $collection->addTailwindComponents($data);
+    }
+    else {
+      $collection->addTailwindUtilities($data);
+    }
+
+    return $collection;
+  }
+
+  /**
+   * Generates, and returns the refusal the generator threw.
+   *
+   * @param \Drupal\neo_build\NeoBuildCollection $collection
+   *   The collection to generate from.
+   *
+   * @return string
+   *   The refusal message.
+   */
+  protected function refusal(NeoBuildCollection $collection): string {
+    try {
+      (new TailwindCssGenerator())->generate($collection);
+    }
+    catch (\InvalidArgumentException $e) {
+      return $e->getMessage();
+    }
+
+    $this->fail('the generator accepted an entry that breaks the selector-key rule');
+  }
+
+  /**
+   * A `--` key in component data is refused, not routed.
+   *
+   * Up to 1.0.65 it was recognised and forwarded to addCssVariable(). The
+   * branch is gone, because a custom property in selector position would
+   * otherwise emit a bare declaration inside `@layer components`. The refusal
+   * is what the removal left owing.
+   */
+  public function testRefusesCustomPropertyKeysInComponentData(): void {
+    $message = $this->refusal($this->withEntry('components', ['--card-pad' => '2rem']));
+
+    $this->assertStringContainsString('components', $message);
+    $this->assertStringContainsString('"--card-pad"', $message);
+    $this->assertStringContainsString('selector', $message);
+    $this->assertStringContainsString('declarations', $message);
+    $this->assertStringContainsString('theme:', $message);
+  }
+
+  /**
+   * A `--` key is refused on the key alone, whatever its value.
+   *
+   * The shape that passed every type check: with an array value it raised no
+   * TypeError at all and quietly emitted `--card-pad { … }` as a selector into
+   * `@layer components`.
+   */
+  public function testRefusesCustomPropertyKeysGivenAnArrayValueInComponentData(): void {
+    $message = $this->refusal($this->withEntry('components', ['--card-pad' => ['padding' => '2rem']]));
+
+    $this->assertStringContainsString('components', $message);
+    $this->assertStringContainsString('"--card-pad"', $message);
+    $this->assertStringContainsString('selector', $message);
+  }
+
+  /**
+   * A non-array value under an ordinary selector is refused.
+   *
+   * The identical TypeError with no `--` in sight: a utility string written
+   * where a declarations array belongs.
+   */
+  public function testRefusesNonArrayValuesUnderOrdinarySelectors(): void {
+    $message = $this->refusal($this->withEntry('components', ['.card' => 'text-center']));
+
+    $this->assertStringContainsString('components', $message);
+    $this->assertStringContainsString('".card"', $message);
+    $this->assertStringContainsString('array of declarations', $message);
+  }
+
+  /**
+   * A list-shaped contribution is refused on its integer key.
+   *
+   * This one fails one argument earlier than the rest — on `$selector` rather
+   * than `$properties` — and the entry it names has no selector to report.
+   */
+  public function testRefusesNonStringKeysFromListShapedContributions(): void {
+    $message = $this->refusal($this->withEntry('components', [['padding' => '1rem']]));
+
+    $this->assertStringContainsString('components', $message);
+    $this->assertStringContainsString('"0"', $message);
+    $this->assertStringContainsString('selector', $message);
+  }
+
+  /**
+   * The same four shapes are refused in utility data, named as utilities.
+   *
+   * One rule, both loops. The section in the message is the section the entry
+   * arrived in, which is the only thing that tells a reader which half of an
+   * info file to open.
+   */
+  public function testRefusesTheSameFourShapesInUtilityData(): void {
+    $entries = [
+      ['--card-pad' => '2rem'],
+      ['--card-pad' => ['padding' => '2rem']],
+      ['.card' => 'text-center'],
+      [['padding' => '1rem']],
+    ];
+
+    foreach ($entries as $entry) {
+      $message = $this->refusal($this->withEntry('utilities', $entry));
+
+      $this->assertStringContainsString('utilities', $message);
+      $this->assertStringNotContainsString('components', $message);
+    }
+  }
+
+  /**
+   * Custom properties inside a rule's declarations are untouched.
+   *
+   * Modelled on neo_color's prose contribution — a four-part scheme selector
+   * mapped to fourteen `--tw-prose-*` declarations — because that is the live
+   * shape on every site, and the one a guard that walked into the declarations
+   * array would break under every scheme. The rule is about the key position.
+   */
+  public function testRendersCustomPropertiesInsideComponentRulesUnchanged(): void {
+    $selector = implode(', ', [
+      '[class^="scheme-"] .prose',
+      '[class*=" scheme-"] .prose',
+      '[class^="scheme-"].prose',
+      '[class*=" scheme-"].prose',
+    ]);
+    $text = 'var(--text-color-default)';
+    $border = 'var(--color-border-default)';
+    $muted = fn (int $pct) => "color-mix(in oklab, var(--text-color-default) {$pct}%, transparent)";
+    $prose = [
+      '--tw-prose-body' => $text . ' !important',
+      '--tw-prose-headings' => $text . ' !important',
+      '--tw-prose-lead' => $muted(80) . ' !important',
+      '--tw-prose-links' => 'var(--link-color, var(--text-color-default)) !important',
+      '--tw-prose-bold' => $text . ' !important',
+      '--tw-prose-counters' => $muted(70) . ' !important',
+      '--tw-prose-bullets' => $muted(45) . ' !important',
+      '--tw-prose-hr' => $border . ' !important',
+      '--tw-prose-quotes' => $text . ' !important',
+      '--tw-prose-quote-borders' => $border . ' !important',
+      '--tw-prose-captions' => $muted(70) . ' !important',
+      '--tw-prose-code' => $text . ' !important',
+      '--tw-prose-th-borders' => $border . ' !important',
+      '--tw-prose-td-borders' => $border . ' !important',
+    ];
+
+    $content = (new TailwindCssGenerator())->generate($this->withEntry('components', [$selector => $prose]))->getContent();
+
+    $css = new TailwindStylesheet();
+    $css->addRule($selector, $prose, 'components');
+    $this->assertSame(self::HEADER . $css->toCss(), $content);
+    $this->assertStringContainsString('--tw-prose-body: var(--text-color-default) !important;', $content);
+  }
+
 }
