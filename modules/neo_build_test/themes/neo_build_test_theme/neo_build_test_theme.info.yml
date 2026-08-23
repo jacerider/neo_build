@@ -9,5 +9,22 @@ neo:
   scope:
     - front
     - back
+  # One retired section, so prepare has something to report and drop.
+  base:
+    '.neo-build-test-retired':
+      color: '#ff0000'
+  # All four consumed sections, so the explicit dispatch is pinned end to end.
+  theme:
+    neoBuildTestSection: info
+    '--neo-build-test-var': '#123456'
+  components:
+    '.neo-build-test-component':
+      color: '#654321'
+  utilities:
+    '.neo-build-test-utility':
+      display: block
+  variants:
+    neo-build-test-variant:
+      - '&:hover'
 libraries:
   - neo_build_test_theme/global

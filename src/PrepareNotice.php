@@ -28,6 +28,11 @@ final class PrepareNotice {
   public const MISSING_PRIMARY_FILE = 'missing_primary_file';
 
   /**
+   * An extension declares a Tailwind section that is retired and was dropped.
+   */
+  public const RETIRED_TAILWIND_SECTION = 'retired_tailwind_section';
+
+  /**
    * Constructs a PrepareNotice.
    *
    * @param string $type

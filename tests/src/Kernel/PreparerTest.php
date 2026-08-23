@@ -223,6 +223,78 @@ class PreparerTest extends KernelTestBase {
   }
 
   /**
+   * A retired section is reported, named, and told where to go instead.
+   *
+   * The fixture theme declares `neo: base:`, which no layer of the build can
+   * honour since the collection method was removed. Prepare says so rather
+   * than dropping it in silence, and the message ends with the author knowing
+   * what to type instead.
+   */
+  public function testReportsTheRetiredTailwindSectionAndNamesTheReplacement(): void {
+    $this->installTheme();
+
+    $result = $this->preparer()->prepare('front');
+
+    $retired = array_map(
+      fn (PrepareNotice $notice) => $notice->getMessage(),
+      $result->getNotices(PrepareNotice::RETIRED_TAILWIND_SECTION),
+    );
+    $this->assertCount(1, $retired);
+    $this->assertStringContainsString('neo_build_test_theme', $retired[0]);
+    $this->assertStringContainsString('base', $retired[0]);
+    // The remedy, both halves of it.
+    $this->assertStringContainsString('theme', $retired[0]);
+    $this->assertStringContainsString('components', $retired[0]);
+  }
+
+  /**
+   * Prepare succeeds with the retired section declared, and it reaches nothing.
+   *
+   * Warn, drop, succeed: the declaration would have emitted nothing had it
+   * been honoured, so reporting it must not cost the build. Its selector is a
+   * literal only the fixture uses, so its absence from every artifact is
+   * checkable directly.
+   */
+  public function testPrepareSucceedsWithTheRetiredSectionAndReachesNoData(): void {
+    $this->installTheme();
+
+    $result = $this->preparer()->prepare('front');
+
+    $this->assertNotEmpty($result->getArtifacts());
+    foreach ($result->getArtifacts() as $artifact) {
+      $this->assertStringNotContainsString(
+        'neo-build-test-retired',
+        (string) file_get_contents($artifact),
+        $artifact,
+      );
+    }
+  }
+
+  /**
+   * Each of the four declared sections reaches the artifact that owns it.
+   *
+   * The partition is the thing under test: the theme's non-variable keys are
+   * the plugin's and go to neo.json, while its CSS variables, the components,
+   * the utilities and the variants are the stylesheet's. Nothing pinned the
+   * info.yml to artifact route before the dispatch became explicit.
+   */
+  public function testEachDeclaredSectionReachesItsArtifact(): void {
+    $this->installTheme();
+
+    $result = $this->preparer()->prepare('front');
+
+    $this->assertSame('info', $this->neoJson()['tailwind']['theme']['neoBuildTestSection']);
+
+    $themePath = $this->container->get('extension.list.theme')->getPath('neo_build_test_theme');
+    $css = (string) file_get_contents($this->root . '/web/' . $themePath . '/src/css/tailwind.neo.css');
+    $this->assertStringContainsString('--neo-build-test-var', $css);
+    $this->assertStringContainsString('.neo-build-test-component', $css);
+    $this->assertStringContainsString('neo-build-test-utility', $css);
+    $this->assertStringContainsString('neo-build-test-variant', $css);
+    $this->assertNotEmpty($result->getArtifacts());
+  }
+
+  /**
    * A scope id string and its enum case prepare the same thing.
    *
    * Drush hands `neo:build <scope>` through as a string and that has to keep

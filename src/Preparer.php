@@ -201,11 +201,12 @@ class Preparer {
   /**
    * Adds a scoped Neo extension's contributions to the collection.
    *
-   * Tailwind imports and sources, the info-file Tailwind sections, then for
-   * every library the Vite entrypoints (with their existence checks), the TS
-   * includes and the stylelint globs. Paths stored in the collection stay
-   * relative to the app root; every check against the disk is absolute, so the
-   * result does not depend on the working directory.
+   * Tailwind imports and sources, the four info-file Tailwind sections by
+   * name, a notice for every retired section the extension still declares,
+   * then for every library the Vite entrypoints (with their existence
+   * checks), the TS includes and the stylelint globs. Paths stored in the
+   * collection stay relative to the app root; every check against the disk is
+   * absolute, so the result does not depend on the working directory.
    *
    * @param \Drupal\neo_build\NeoExtension $extension
    *   The extension.
@@ -229,12 +230,26 @@ class Preparer {
     if (is_dir($this->appRoot . '/' . $path . '/templates')) {
       $collection->addTailwindSource($name . ':Twig', $path . '/templates/**/*.twig');
     }
-    foreach ($extension->getTailwindInfo() as $key => $data) {
+    $tailwind = $extension->getTailwindInfo();
+    foreach ($tailwind as $key => $data) {
       $this->assertFlatTailwindData($name, $key, $data);
-      $method = 'addTailwind' . ucfirst($key);
-      if (method_exists($collection, $method)) {
-        $collection->$method($data);
-      }
+    }
+    // Four sections, four calls. Building the method name and testing it with
+    // method_exists() meant that removing a collection method turned a
+    // condition false and the section stopped arriving in silence — which is
+    // exactly how `base` outlived the layer it fed. Named calls make the next
+    // such removal a call site that cannot compile.
+    $collection->addTailwindTheme($tailwind['theme']);
+    $collection->addTailwindComponents($tailwind['components']);
+    $collection->addTailwindUtilities($tailwind['utilities']);
+    $collection->addTailwindVariants($tailwind['variants']);
+
+    foreach ($extension->getRetiredTailwindSections() as $retired) {
+      $result->addNotice(new PrepareNotice(PrepareNotice::RETIRED_TAILWIND_SECTION, sprintf(
+        'Retired Tailwind section dropped: "%s" in %s. Nothing reads it, and the build continues without it. Move custom properties into the extension\'s `neo: theme:` section and rules into `neo: components:`.',
+        $retired,
+        $name,
+      )));
     }
 
     foreach ($extension->getLibraries() as $library) {
@@ -255,9 +270,8 @@ class Preparer {
    * is still in hand.
    *
    * Only `components` and `utilities` carry rules. `theme` is custom
-   * properties, `variants` is a selector list, and `base` is dropped by the
-   * collection; none of them is a selector-to-properties map, so none is
-   * checked here.
+   * properties and `variants` is a selector list; neither is a
+   * selector-to-properties map, so neither is checked here.
    *
    * @param string $extension
    *   The extension whose info file declared the data.

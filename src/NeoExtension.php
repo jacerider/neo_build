@@ -199,28 +199,57 @@ class NeoExtension {
   }
 
   /**
+   * The Tailwind sections an extension's `neo:` block may declare.
+   *
+   * The closed vocabulary, in the order the preparer dispatches them. Each one
+   * reaches a collection method by name.
+   */
+  public const TAILWIND_SECTIONS = ['theme', 'components', 'utilities', 'variants'];
+
+  /**
+   * The Tailwind sections that were withdrawn and now reach nothing.
+   *
+   * `base` had two routes into the build — `addTailwindBase()`, and this key.
+   * The first was removed with the base layer itself; this one survived it and
+   * would otherwise be dropped without a word. The extension states that the
+   * key is retired; the preparer decides what to say about it.
+   */
+  public const RETIRED_TAILWIND_SECTIONS = ['base'];
+
+  /**
    * Returns the Tailwind CSS configuration for the extension.
    *
    * @return array
-   *   An array containing Tailwind CSS configuration sections.
-   *   The array includes the following keys:
+   *   The four accepted sections, every one of them present:
    *   - theme: Custom theme configurations.
-   *   - base: Base styles to include.
    *   - components: Component styles to include.
    *   - utilities: Utility styles to include.
    *   - variants: Variants to include.
    *   Each key maps to an array of configurations. If a key is not defined
-   *   in the extension's info, it defaults to an empty array.
+   *   in the extension's info, it defaults to an empty array. A retired
+   *   section is not among them; see getRetiredTailwindSections().
    */
   public function getTailwindInfo(): array {
-    $defaults = [
-      'theme' => [],
-      'base' => [],
-      'components' => [],
-      'utilities' => [],
-      'variants' => [],
-    ];
+    $defaults = array_fill_keys(self::TAILWIND_SECTIONS, []);
     return array_intersect_key($this->info['neo'] ?? [], $defaults) + $defaults;
+  }
+
+  /**
+   * Returns the retired Tailwind sections this extension actually declares.
+   *
+   * Normally empty. Unknown keys are not reported here — that would need a
+   * validated vocabulary for the whole `neo:` block, and without one it would
+   * fire on every typo and on `group:`, which `neo_base` declares on every
+   * site.
+   *
+   * @return array
+   *   The declared retired section names, in vocabulary order.
+   */
+  public function getRetiredTailwindSections(): array {
+    return array_values(array_intersect(
+      self::RETIRED_TAILWIND_SECTIONS,
+      array_keys($this->info['neo'] ?? []),
+    ));
   }
 
   /**
