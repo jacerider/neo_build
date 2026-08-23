@@ -185,7 +185,7 @@ class DrushCommands extends CoreCommands {
     $dev = $this->neoBuild->isDevMode();
     $scope = $this->neoBuild->getScope();
     $lock = file_exists($this->projectRoot->getRoot() . '/_neo.lock');
-    $up = $this->devServerAnswering();
+    $up = $this->devServer->isAnswering();
     if ($dev && $up) {
       $status = 'DEV — assets served via HMR from the dev server (scope: ' . $scope . '). Builds are not needed for ' . $scope . ' changes; other scopes still serve stale dist/.';
     }
@@ -209,27 +209,6 @@ class DrushCommands extends CoreCommands {
   }
 
   /**
-   * Probe the vite dev server port.
-   *
-   * The dev server binds 0.0.0.0 in this container, so a localhost TCP
-   * connect is enough to know whether anything is answering.
-   *
-   * @return bool
-   *   TRUE if a dev server is answering.
-   */
-  protected function devServerAnswering(): bool {
-    $port = (int) NeoBuild::getNeoSetting('port', 5173);
-    $errno = 0;
-    $errstr = '';
-    $socket = @fsockopen('localhost', $port, $errno, $errstr, 1);
-    if ($socket !== FALSE) {
-      fclose($socket);
-      return TRUE;
-    }
-    return FALSE;
-  }
-
-  /**
    * Enable automatic tracking of vite dev server.
    *
    * @command neo:build:dev:enable
@@ -238,6 +217,17 @@ class DrushCommands extends CoreCommands {
    * @aliases neo-dev-enable
    */
   public function neoBuildDevEnable() {
+    // Refuse rather than turn dev mode on into a state where every asset 404s.
+    // This is the one place where refusing costs nothing: a one-shot command
+    // with the developer watching, which keeps the guard out of the render path
+    // entirely. Nothing is written before this returns — no state flag, no lock
+    // file, no pre-commit hook.
+    if (!$this->devServer->isAvailable()) {
+      throw new \RuntimeException(sprintf(
+        'Neo dev mode needs %s, which is not set. Neo runs its dev server under DDEV and no other environment is supported, so there is no dev server URL to serve assets from. Start the site with DDEV and try again.',
+        DevServer::ENVIRONMENT_VARIABLE,
+      ));
+    }
     if (!$this->neoBuildDevEnabled()) {
       $this->neoBuild->setDevMode(TRUE);
       $root = $this->projectRoot->getRoot();

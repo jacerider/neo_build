@@ -34,12 +34,27 @@ module.exports = {
   },
 
   buildServer: (neo) => {
+    // Refuse rather than compose `undefined:5173` as the origin. Neo's dev
+    // server runs under DDEV and no other environment is supported, so an
+    // absent variable is a broken environment, not a case to fall back for.
+    // Every asset URL Vite hands the browser is built from this origin, so
+    // composing one out of `undefined` produces a server that starts happily
+    // and serves nothing.
+    if (!process.env.DDEV_PRIMARY_URL) {
+      throw new Error(
+        'DDEV_PRIMARY_URL is not set. Neo runs its dev server under DDEV and no other ' +
+        'environment is supported. Start the site with DDEV and run this again.'
+      );
+    }
     return {
       host: '0.0.0.0',
       origin: `${process.env.DDEV_PRIMARY_URL}:${neo.port}`,
       port: neo.port,
       strictPort: true,
       cors: {
+        // Deliberately unchanged. Now that the server refuses to start without
+        // the variable, this regex is unreachable outside DDEV, so relaxing it
+        // would only widen what is accepted on the sites that do run it.
         origin: /https?:\/\/([A-Za-z0-9\-\.]+)?(\.ddev\.site)(?::\d+)?$/,
       }
     }
