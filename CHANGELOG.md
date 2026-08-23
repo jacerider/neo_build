@@ -1,5 +1,46 @@
 # Changelog
 
+## Component and utility entries are refused unless they name a selector
+
+Up to **1.0.65**, a `--` key in component data was recognised and forwarded to
+`addCssVariable()`, landing in the stylesheet's `@theme` block. **That branch is
+gone.** It had to go: a custom property in selector position would otherwise emit
+a bare declaration inside `@layer components`, which is not valid CSS. Removing
+it was right, and it is also what turned the route into a stack trace — the same
+key that used to be quietly rehomed became an uncaught `TypeError` out of
+`drush neo:build`, naming a stylesheet class and no key at all.
+
+**The shape is now refused by name.** `TailwindCssGenerator` states one rule for
+both sections — the **selector-key rule**: an entry is a **string** key naming a
+CSS selector, mapped to an **array** of declarations. Three shapes break it and
+each is refused with the section, the key exactly as it arrived, which half of
+the rule was broken and the remedy:
+
+- a key that is not a string, which is what a list-shaped contribution yields;
+- a string key beginning `--`, which names a custom property rather than a
+  selector — move it into a rule's declarations, or into the extension's
+  `theme:` section;
+- a value that is not an array, such as `'.card' => 'text-center'`.
+
+The check guards **component and utility data alike**: the two loops had the
+same signature and the same hole.
+
+**The refusal fails prepare; it does not warn and skip.** A prepare result has no
+severity, so a warning would print with the same marker as every other notice and
+still be followed by `Prepare Success` — the silent drop this refusal exists to
+end, dressed as output. Failing means a scope whose CSS cannot be emitted
+correctly produces no `tailwind.neo.css` at all, which is the honest outcome.
+
+**Custom properties inside a rule's declarations are unaffected.** The rule is
+about the key position only, and nothing inside the declarations array is
+inspected here. A rule mapping a selector to fourteen `--tw-prose-*`
+declarations — `neo_color`'s prose contribution under every scheme — renders
+exactly as it did.
+
+The message does not name the offending extension: the generators run on the
+merged collection, where provenance is gone. The key is a literal string, so
+grep for it.
+
 ## Info-file Tailwind data is flat, and the conversion machinery is gone
 
 `TailwindStylesheet` used to convert camelCase property names to kebab-case and
