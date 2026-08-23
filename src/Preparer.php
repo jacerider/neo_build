@@ -147,9 +147,7 @@ class Preparer {
     $this->neoBuild->preventAlter();
 
     $collection = new NeoBuildCollection(
-      NeoBuild::getNeoSetting('host'),
       NeoBuild::getNeoSetting('port'),
-      NeoBuild::getNeoSetting('https'),
       (bool) $this->state->get(self::DEV_STATE_KEY, FALSE),
       $root,
       $docRoot,

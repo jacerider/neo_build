@@ -22,9 +22,7 @@ class NeoBuildCollection {
    * @var array
    */
   private array $neo = [
-    'host' => NULL,
     'port' => NULL,
-    'https' => NULL,
     'dev' => FALSE,
     'root' => NULL,
     'docRoot' => NULL,
@@ -71,12 +69,8 @@ class NeoBuildCollection {
   /**
    * Constructs a new NeoBuildCollection object.
    *
-   * @param string $host
-   *   The host.
    * @param int $port
    *   The port.
-   * @param bool $https
-   *   Whether to use HTTPS.
    * @param bool $dev
    *   Whether this is a development build.
    * @param string $root
@@ -87,17 +81,13 @@ class NeoBuildCollection {
    *   The Neo root path.
    */
   public function __construct(
-    string $host,
     int $port,
-    bool $https,
     bool $dev,
     string $root,
     string $docRoot,
     string $neoRoot,
   ) {
-    $this->setHost($host);
     $this->setPort($port);
-    $this->setHttps($https);
     $this->setDev($dev);
     $this->setRoot($root);
     $this->setDocRoot($docRoot);
@@ -105,30 +95,6 @@ class NeoBuildCollection {
 
     // Add Neo build typing.
     $this->addTsInclude($neoRoot . '/src/js/typings/*.d.ts');
-  }
-
-  /**
-   * Sets the host.
-   *
-   * @param string $host
-   *   The host to set.
-   *
-   * @return $this
-   *   The current instance for method chaining.
-   */
-  public function setHost(string $host): self {
-    $this->neo['host'] = $host;
-    return $this;
-  }
-
-  /**
-   * Gets the host.
-   *
-   * @return string
-   *   The host.
-   */
-  public function getHost(): string {
-    return $this->neo['host'];
   }
 
   /**
@@ -153,30 +119,6 @@ class NeoBuildCollection {
    */
   public function getPort(): int {
     return $this->neo['port'];
-  }
-
-  /**
-   * Sets the HTTPS flag.
-   *
-   * @param bool $https
-   *   Whether to use HTTPS.
-   *
-   * @return $this
-   *   The current instance for method chaining.
-   */
-  public function setHttps(bool $https): self {
-    $this->neo['https'] = $https;
-    return $this;
-  }
-
-  /**
-   * Gets the HTTPS flag.
-   *
-   * @return bool
-   *   Whether to use HTTPS.
-   */
-  public function getHttps(): bool {
-    return $this->neo['https'];
   }
 
   /**

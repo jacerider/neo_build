@@ -10,7 +10,7 @@ use Drupal\neo_build\NeoBuildCollection;
  * Generates neo.json, what the Node side of the build reads.
  *
  * The Vite config and the Neo Tailwind plugin read this file. It carries the
- * host, port, https and dev flags, the roots and scope, the ignored globs, the
+ * port and the dev flag, the roots and scope, the ignored globs, the
  * Vite entrypoints, the stylelint globs, the icon data — and, under tailwind,
  * only what the partition rule leaves to it: the theme without its CSS
  * variables, and the icon libraries and icons. The CSS-owned keys — source,
@@ -42,9 +42,7 @@ final class NeoJsonGenerator implements ArtifactGeneratorInterface {
     );
 
     $data = [
-      'host' => $collection->getHost(),
       'port' => $collection->getPort(),
-      'https' => $collection->getHttps(),
       'dev' => $collection->isDev(),
       'root' => $collection->getRoot(),
       'docRoot' => $collection->getDocRoot(),

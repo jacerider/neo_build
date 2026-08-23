@@ -24,9 +24,7 @@ class TsConfigGeneratorTest extends UnitTestCase {
    */
   public function testWritesModuleTypingsFirstThenEntrypointsInCollectionOrder(): void {
     $collection = new NeoBuildCollection(
-      'wps.ddev.site',
       5173,
-      TRUE,
       FALSE,
       '/var/www/html',
       'web',

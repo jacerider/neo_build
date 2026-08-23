@@ -45,9 +45,7 @@ class PhpstanGeneratorTest extends UnitTestCase {
    */
   protected function collection(): NeoBuildCollection {
     return new NeoBuildCollection(
-      'wps.ddev.site',
       5173,
-      TRUE,
       FALSE,
       '/var/www/html',
       'web',

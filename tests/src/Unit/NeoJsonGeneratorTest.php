@@ -31,9 +31,7 @@ class NeoJsonGeneratorTest extends UnitTestCase {
    */
   protected function collection(bool $dev = FALSE): NeoBuildCollection {
     return new NeoBuildCollection(
-      'wps.ddev.site',
       5173,
-      TRUE,
       $dev,
       '/var/www/html',
       'web',
@@ -94,7 +92,7 @@ class NeoJsonGeneratorTest extends UnitTestCase {
     $data = json_decode($content, TRUE);
 
     $this->assertSame([
-      'host', 'port', 'https', 'dev', 'root', 'docRoot', 'neoRoot', 'primaryRoot',
+      'port', 'dev', 'root', 'docRoot', 'neoRoot', 'primaryRoot',
       'primaryFile', 'scope', 'ignored', 'tailwind', 'vite', 'stylelint',
     ], array_keys($data));
     $this->assertSame([
@@ -102,9 +100,9 @@ class NeoJsonGeneratorTest extends UnitTestCase {
       'icon_libraries', 'icons',
     ], array_keys($data['tailwind']));
 
-    $this->assertSame('wps.ddev.site', $data['host']);
     $this->assertSame(5173, $data['port']);
-    $this->assertTrue($data['https']);
+    $this->assertArrayNotHasKey('host', $data, 'host never took effect and is gone.');
+    $this->assertArrayNotHasKey('https', $data, 'https never took effect and is gone.');
     $this->assertTrue($data['dev']);
     $this->assertSame('/var/www/html/', $data['root']);
     $this->assertSame('web/', $data['docRoot']);
