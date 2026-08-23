@@ -1,7 +1,12 @@
 services:
   neo_build:
     class: Drupal\neo_build\NeoBuild
-    arguments: ['@extension.list.neo', '@state', '@neo_build.manifest_resolver']
+    arguments: ['@extension.list.neo', '@state', '@neo_build.manifest_resolver', '@neo_build.dev_server']
+
+  neo_build.dev_server:
+    class: Drupal\neo_build\DevServer
+    factory: ['Drupal\neo_build\DevServer', 'create']
+    arguments: ['@http_client']
 
   logger.channel.neo_build:
     parent: logger.channel_base

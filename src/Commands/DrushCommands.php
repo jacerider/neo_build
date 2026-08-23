@@ -15,6 +15,7 @@ use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Plugin\CachedDiscoveryClearerInterface;
 use Drupal\Core\Template\TwigEnvironment;
+use Drupal\neo_build\DevServer;
 use Drupal\neo_build\NeoBuild;
 use Drupal\neo_build\NeoExtensionList;
 use Drupal\neo_build\PrepareNotice;
@@ -44,6 +45,8 @@ class DrushCommands extends CoreCommands {
     private readonly ConfigFactoryInterface $configFactory,
     private readonly CachedDiscoveryClearerInterface $pluginCacheClearer,
     private readonly ProjectRootInterface $projectRoot,
+    private readonly DevServer $devServer,
+    private readonly NeoBuild $neoBuild,
   ) {
     parent::__construct();
   }
@@ -153,7 +156,7 @@ class DrushCommands extends CoreCommands {
    *   Returns TRUE if in dev mode.
    */
   public function neoBuildDevEnabled() {
-    return NeoBuild::getNeoState('dev', FALSE);
+    return $this->neoBuild->isDevMode();
   }
 
   /**
@@ -179,8 +182,8 @@ class DrushCommands extends CoreCommands {
    *   lock: Lock file
    */
   public function neoBuildStatus($options = ['format' => 'table']): PropertyList {
-    $dev = (bool) NeoBuild::getNeoState('dev', FALSE);
-    $scope = NeoBuild::getNeoState('scope', 'front');
+    $dev = $this->neoBuild->isDevMode();
+    $scope = $this->neoBuild->getScope();
     $lock = file_exists($this->projectRoot->getRoot() . '/_neo.lock');
     $up = $this->devServerAnswering();
     if ($dev && $up) {
@@ -199,7 +202,7 @@ class DrushCommands extends CoreCommands {
       'status' => $status,
       'dev' => $dev,
       'scope' => $scope,
-      'dev_server_url' => NeoBuild::getViteDevServerUrl(),
+      'dev_server_url' => $this->devServer->getUrl() ?? $this->devServer->getUnavailableReason(),
       'dev_server_up' => $up,
       'lock' => $lock,
     ]);
@@ -236,7 +239,7 @@ class DrushCommands extends CoreCommands {
    */
   public function neoBuildDevEnable() {
     if (!$this->neoBuildDevEnabled()) {
-      NeoBuild::setNeoState('dev', TRUE);
+      $this->neoBuild->setDevMode(TRUE);
       $root = $this->projectRoot->getRoot();
 
       // Set pre-commit hook.
@@ -263,7 +266,7 @@ class DrushCommands extends CoreCommands {
    */
   public function neoBuildDevDisable() {
     if ($this->neoBuildDevEnabled()) {
-      NeoBuild::unsetNeoState('dev');
+      $this->neoBuild->setDevMode(FALSE);
       $this->output()->writeln((string) dt('<info>✔ [neo]</info> Automatic tracking of Neo DEV server disabled.'));
     }
   }

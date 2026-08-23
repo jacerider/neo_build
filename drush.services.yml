@@ -13,5 +13,7 @@ services:
       - '@config.factory'
       - '@plugin.cache_clearer'
       - '@neo_build.project_root'
+      - '@neo_build.dev_server'
+      - '@neo_build'
     tags:
       - { name: drush.command }

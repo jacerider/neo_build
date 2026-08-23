@@ -47,6 +47,7 @@ class NeoBuild {
     private readonly NeoExtensionList $neoExtensionList,
     private readonly StateInterface $state,
     private readonly ManifestResolver $manifestResolver,
+    private readonly DevServer $devServer,
   ) {
   }
 
@@ -131,7 +132,14 @@ class NeoBuild {
    */
   public function rewriteLibrary(NeoLibrary $neoLibrary): array {
     if ($this->isDevMode() && in_array($this->getScope(), $neoLibrary->getScope())) {
-      return $this->rewriteLibraryForDev($neoLibrary);
+      // No dev server URL means no dev rewrite to make. Serving the compiled
+      // assets is the honest answer; pointing every asset at a URL composed
+      // from an unset variable is what this plan removes. Dev mode cannot
+      // normally reach this state — neo:build:dev:enable refuses without the
+      // variable — so this is a guard, not a supported path.
+      if ($this->devServer->getUrl() !== NULL) {
+        return $this->rewriteLibraryForDev($neoLibrary);
+      }
     }
     return $this->rewriteLibraryForProd($neoLibrary);
   }
@@ -152,7 +160,7 @@ class NeoBuild {
     ];
     if ($cssPath = $neoLibrary->getCssPath()) {
       $rewrites['css'] = [
-        'path' => $this->getViteDevServerUrl() . $cssPath,
+        'path' => $this->devServer->getUrl() . $cssPath,
         'toJs' => TRUE,
         'options' => [
           'type' => 'external',
@@ -162,7 +170,7 @@ class NeoBuild {
     }
     if ($jsPath = $neoLibrary->getJsPath()) {
       $rewrites['js'] = [
-        'path' => $this->getViteDevServerUrl() . $jsPath,
+        'path' => $this->devServer->getUrl() . $jsPath,
         'options' => [
           'type' => 'external',
           'attributes' => ['type' => 'module'],
@@ -262,13 +270,6 @@ class NeoBuild {
    */
   public function setScope(string $scope): void {
     $this->state->set(self::SCOPE_STATE_KEY, $scope);
-  }
-
-  /**
-   * Returns Vite dev server URL.
-   */
-  public static function getViteDevServerUrl(): string {
-    return $_ENV['DDEV_PRIMARY_URL_WITHOUT_PORT'] . ':5173/';
   }
 
   // The Drupal standard's deprecation format requires a removal version and a

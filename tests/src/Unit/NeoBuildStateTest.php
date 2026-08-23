@@ -12,11 +12,13 @@ use Drupal\Core\Extension\ModuleHandler;
 use Drupal\Core\Extension\ThemeExtensionList;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Theme\ThemeManagerInterface;
+use Drupal\neo_build\DevServer;
 use Drupal\neo_build\ManifestResolver;
 use Drupal\neo_build\NeoBuild;
 use Drupal\neo_build\NeoExtensionList;
 use Drupal\neo_build\Preparer;
 use Drupal\Tests\UnitTestCase;
+use GuzzleHttp\ClientInterface;
 use PHPUnit\Framework\Attributes\Group;
 use Psr\Log\LoggerInterface;
 
@@ -300,6 +302,7 @@ class NeoBuildStateTest extends UnitTestCase {
       $neoExtensionList,
       $this->state,
       $manifestResolver,
+      new DevServer($this->createMock(ClientInterface::class), 5173),
     );
   }
 
