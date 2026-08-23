@@ -435,21 +435,64 @@ If a scope is not defined, the default depends on the extension type: a
 COMPONENTS
 ----------
 
-You can register new Tailwind components by defining them in your theme/module
-info file. For example:
+You can register new Tailwind components and utilities by defining them in your
+theme/module info file. For example:
 
 ```yaml
 neo:
   scope: back
   components:
     .container:
-      '@apply mt-6 first:mt-0 rounded-sm border': {}
+      apply: '@apply mt-6 first:mt-0 rounded-sm border'
+  utilities:
     .card:
-      backgroundColor: colors.white
-      borderRadius: borderRadius.lg
-      padding: spacing.6
-      boxShadow: boxShadow.xl
+      apply: '@apply rounded-lg border shadow-xl p-6'
+    .text-md:
+      font-size: var(--text-md)
+      line-height: 1.5rem
 ```
+
+**Tailwind data in an info file is flat.** A rule is a map of kebab-case CSS
+property names to values, plus the `apply` key, whose value is emitted as
+written. Two forms are refused outright, and the build fails naming the
+extension, the selector and the key:
+
+ * **A property name carrying an uppercase letter.** There is no camelCase
+   conversion — a property name reaches the emitted CSS verbatim. Write
+   `font-size`, not `fontSize`. A name beginning `--` is exempt, because custom
+   properties are case-sensitive and their case is yours to choose.
+ * **An array value.** That was how a nested selector used to be written, and
+   it is also what the old `'@apply …': {}` key form is — a key with an empty
+   array for a value. Use `apply: '@apply …'` instead.
+
+**A rule needing a nested selector, a state or a pseudo-element goes in an
+import entrypoint** — a stylesheet declared by a library flagged
+`neo: { import: true }` — where it is written as ordinary CSS:
+
+```yaml
+# my_theme.libraries.yml
+global-utilities:
+  version: VERSION
+  neo:
+    import: true
+  css:
+    theme:
+      src/css/_utilities.css: { minified: true }
+```
+
+```css
+/* src/css/_utilities.css */
+@utility card {
+  @apply block rounded-sm border;
+
+  &:hover {
+    border-color: var(--color-base-400);
+  }
+}
+```
+
+That file is imported into the generated stylesheet, so its `@utility` and
+`@custom-variant` definitions can override the generated ones above them.
 
 THEME
 -----

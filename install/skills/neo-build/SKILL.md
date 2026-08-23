@@ -182,13 +182,28 @@ Extend Tailwind from a theme/module info.yml rather than a config file — see R
 neo:
   scope: back
   components:
-    .card: { '@apply rounded-lg border shadow-xl p-6': {} }
+    .card: { apply: '@apply rounded-lg border shadow-xl p-6' }
+  utilities:
+    .text-md: { font-size: var(--text-md), line-height: 1.5rem }
 theme:
   extend:
     colors: { current: 'currentColor' }
 ```
 
 After editing these, `drush cr` and rebuild the scope.
+
+**Info-file Tailwind data is flat**: kebab-case property names plus the `apply` key. Two forms are
+refused and fail the build, naming the extension, the selector and the key:
+
+- **an uppercase letter in a property name** — no camelCase conversion happens, names are emitted
+  verbatim, so write `font-size` not `fontSize`. Names beginning `--` are exempt (custom properties
+  are case-sensitive).
+- **an array value** — which includes the old `'@apply …': {}` key form, a key whose value is an
+  empty array. Write `apply: '@apply …'`.
+
+Anything needing a nested selector, a state or a pseudo-element goes in an **import entrypoint** —
+a stylesheet on a library flagged `neo: { import: true }` — written as ordinary CSS with real
+nesting. Those files are imported after the generated rules, so they can override them.
 
 ## Common pitfalls
 

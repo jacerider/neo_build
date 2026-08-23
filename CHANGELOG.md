@@ -1,5 +1,39 @@
 # Changelog
 
+## Info-file Tailwind data is flat, and the conversion machinery is gone
+
+`TailwindStylesheet` used to convert camelCase property names to kebab-case and
+turn an array value into a nested rule. **Both are removed.** A property name
+now reaches the emitted CSS verbatim, and `convertPropertyName()`,
+`processNestedProperties()`, `normalizeNestedSelector()` and the recursion in
+`formatRule()` are deleted.
+
+**The removed forms are now refused rather than silently converted.**
+`TailwindStylesheet::addRule()` — the one gate every rule passes, info-file data
+and build event subscriber data alike — throws on a property name carrying an
+uppercase letter (unless it begins `--`, since custom properties are
+case-sensitive) and on an array value. Prepare catches that per extension and
+**fails**, with a message naming the extension, the selector, the key and the
+remedy. It does not warn and continue: a green build that ships form controls
+with no styling is the failure this rule exists to prevent.
+
+**Where a rule with a state goes.** Anything needing a nested selector, a state
+or a pseudo-element belongs in an **import entrypoint** — a stylesheet declared
+by a library flagged `neo: { import: true }` — written as ordinary CSS with real
+nesting. Those files are imported after the generated rules, so they can
+override them. The old `'@apply …': {}` key form is an array value and is
+refused with the rest; write `apply: '@apply …'`.
+
+**A Composer conflict stops the incompatible pairing one step earlier.**
+`neo_build` now conflicts with `jacerider/neo_theme` below `1.1`. `neo_theme`
+1.1 is the release that moves every one of its info-file `utilities:` blocks
+into import entrypoints; paired with an older one, the first prepare on the site
+would fail. Sites without `neo_theme` are unaffected.
+
+**Release order matters:** `neo_theme` 1.1.0 first, `neo_build` after. Composer
+resolves a package's metadata from its tag, so the conflict only starts
+protecting sites at `neo_build`'s next release.
+
 ## A library built into one scope now resolves against that scope
 
 The render-time library rewrite used to read the **active theme's**

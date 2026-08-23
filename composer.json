@@ -18,5 +18,8 @@
   "minimum-stability": "dev",
   "require": {
     "drupal/core": "^10.3 || ^11"
+  },
+  "conflict": {
+    "jacerider/neo_theme": "<1.1"
   }
 }
