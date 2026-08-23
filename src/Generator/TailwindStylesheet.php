@@ -51,6 +51,23 @@ namespace Drupal\neo_build\Generator;
  * distributed with this module, so a path here would open nothing on the site
  * you are reading this on.
  *
+ * ## The flat declaration rule
+ *
+ * A rule's properties are flat: kebab-case property names, plus the `apply`
+ * key. `addRule()` refuses two forms outright, and `assertFlatDeclarations()`
+ * is the one place that decides:
+ *
+ * - A property name carrying an uppercase letter. There is no camelCase
+ *   conversion; the name reaches the emitted CSS verbatim. A name beginning
+ *   `--` is exempt, because custom properties are case-sensitive and their
+ *   case is the caller's business.
+ * - An array value, which is how a nested selector used to be written.
+ *
+ * A rule needing a nested selector, a state or a pseudo-element belongs in an
+ * import entrypoint — a stylesheet declared by a library flagged
+ * `neo: { import: true }` — where it is written as ordinary CSS. That is where
+ * every such rule now lives; nothing declares one in an info file.
+ *
  * ## Basic usage
  *
  * $css = new TailwindStylesheet();
@@ -59,18 +76,17 @@ namespace Drupal\neo_build\Generator;
  * $css->addCssVariable('--bg-site', '100px')
  *     ->addCssVariable('--primary-color', '#007bff');
  *
- * // Add rules. Property names in camelCase are converted to kebab-case, and
- * // an array value is a nested selector.
+ * // Add rules. Property names are kebab-case and are emitted verbatim.
  * $css->addRule('.btn', [
  *     'display' => 'inline-block',
- *     'borderRadius' => '4px', // Will become 'border-radius'.
- *     'backgroundColor' => 'var(--primary-color)',
- *     '&:hover' => [
- *       'backgroundColor' => 'var(--secondary-color)',
- *     ],
+ *     'border-radius' => '4px',
+ *     'background-color' => 'var(--primary-color)',
  *     ], 'components')
  * // With no layer, the rule is emitted at the top level.
  * ->addUtility('.text-center', ['text-align' => 'center']);
+ *
+ * // The `apply` key emits its value as written.
+ * $css->addUtility('.card', ['apply' => '@apply block rounded-sm border']);
  *
  * echo $css->toCss();
  */
@@ -349,18 +365,69 @@ class TailwindStylesheet {
   }
 
   /**
+   * Assert that a rule's properties are flat.
+   *
+   * The one definition of the flat declaration rule. `addRule()` calls it, so
+   * every rule this class stores has passed it — info-file data and build
+   * event subscriber data alike. The preparer calls it too, per extension, so
+   * that it can name the extension at fault; that is why this is public and
+   * static rather than an inline check.
+   *
+   * Refused:
+   * - A property name carrying an uppercase letter, unless it begins `--`.
+   *   Custom properties are case-sensitive, so their case is the caller's
+   *   business.
+   * - An array value, which is how a nested selector used to be written.
+   *
+   * @param string $selector
+   *   The rule's selector, named in the message because it is one of the two
+   *   things needed to find the declaration.
+   * @param array $properties
+   *   The rule's properties.
+   *
+   * @throws \InvalidArgumentException
+   *   If a property name carries an uppercase letter, or a value is an array.
+   */
+  public static function assertFlatDeclarations(string $selector, array $properties): void {
+    foreach ($properties as $property => $value) {
+      $property = (string) $property;
+
+      if (is_array($value)) {
+        throw new \InvalidArgumentException(sprintf(
+          'Tailwind rule "%s" gives the key "%s" an array value. Tailwind data in an info file is flat: move a rule that needs a nested selector, a state or a pseudo-element to an import entrypoint.',
+          $selector,
+          $property,
+        ));
+      }
+
+      if (!str_starts_with($property, '--') && preg_match('/[A-Z]/', $property)) {
+        throw new \InvalidArgumentException(sprintf(
+          'Tailwind rule "%s" declares the property "%s" with an uppercase letter. Tailwind data in an info file is flat: write the property name in kebab-case, or move the rule to an import entrypoint.',
+          $selector,
+          $property,
+        ));
+      }
+    }
+  }
+
+  /**
    * Add a CSS rule with selector and properties.
    *
    * @param string $selector
    *   CSS selector (e.g., '.class', '#id', 'div').
    * @param array $properties
-   *   Associative array of CSS properties (camelCase will be converted to
-   *   kebab-case).
+   *   Associative array of flat CSS properties: kebab-case names, plus the
+   *   `apply` key. See assertFlatDeclarations().
    * @param string|null $layer
    *   The components layer, or NULL for a top-level rule. The only layer this
    *   class knows; anything else is a caller error.
+   *
+   * @throws \InvalidArgumentException
+   *   If the properties are not flat. This is the gate every rule passes.
    */
   public function addRule(string $selector, array $properties, ?string $layer = NULL): self {
+    self::assertFlatDeclarations($selector, $properties);
+
     // Process nested properties (this also handles camelCase conversion).
     $processed = $this->processNestedProperties($properties);
 
