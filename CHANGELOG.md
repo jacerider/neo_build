@@ -1,5 +1,102 @@
 # Changelog
 
+## A library built into one scope now resolves against that scope
+
+The render-time library rewrite used to read the **active theme's**
+`dist/manifest.json` whichever scope the library belonged to. A library
+compiled into only one scope and rendered in the other missed the lookup, and
+the miss was silent: the library kept its declared source path and shipped a
+`.ts` or unbuilt `.css` file to the browser. A front-only library on an admin
+page is the ordinary way to hit it.
+
+A new `neo_build.manifest_resolver` service now owns the whole chain — derive
+the **active scope** for the request, map it to that scope's **dist root**,
+hold one manifest per scope for the request, resolve the entrypoint, and report
+one it could not resolve. **A library declared in a single scope resolves
+against that scope**; a library declared in both still resolves against the
+active scope, which is the majority case and is unchanged.
+
+**That is the fix, and it is a behaviour change.** A site whose per-scope
+manifests happen to carry the same entrypoints will see nothing different. A
+site that was silently serving raw source for a single-scope library will start
+serving the built file — which is what it should always have served.
+
+The active scope is derived per request and never written down: the active
+theme's machine name if it is a scope id, else `back` if the active theme is the
+admin theme, else `front`. The site repository's
+`docs/adr/0002-render-time-scope-is-derived-not-persisted.md` records the rule
+and why a persisted scope-to-dist-root map was rejected.
+
+**A new warning**, on a new `neo_build` logger channel, names a scope and an
+entrypoint when that scope's manifest exists and does not carry it — meaning
+prepare has not run since the entrypoint was declared. A scope with no manifest
+at all stays deliberately silent: "not built yet" is the ordinary state of every
+scope before its first build and of every site during install, and warning there
+would emit one message per entrypoint.
+
+## Dev mode refuses without DDEV rather than half-working
+
+`drush neo:build:dev:enable` now **refuses** when
+`DDEV_PRIMARY_URL_WITHOUT_PORT` is absent, naming the variable, and writes
+nothing when it does: no state flag, no `_neo.lock`, no pre-commit hook. It
+exits non-zero, which stops `npm start`. The Vite dev server refuses to start
+for the same reason instead of composing `undefined:{port}` as its origin.
+
+Previously the dev server URL was built by concatenating that variable with a
+**hard-coded** `:5173`. With the variable unset that produced `":5173/"` — a URL
+shaped well enough to be used and wrong enough that every asset 404s.
+
+**No portability off DDEV is offered, deliberately.** `neo_build` requires DDEV
+by documented design; there is no `$settings` fallback and no second
+environment. What changed is that an unsupported environment now says so at the
+one moment a developer is watching, instead of producing a dev mode that
+silently serves nothing.
+
+A single `neo_build.dev_server` service now owns the URL, the port and whether
+anything is answering. The port comes from `$settings['neo']['port']`, retiring
+the `:5173` hardcode that ignored it — so on a site that had moved the port,
+both probes reported the server up while every asset URL pointed elsewhere. The
+probe is now an HTTP GET for `/@vite/client`, the same request the build CLI
+makes, so Drush and the CLI agree that only a real Vite server counts; Drush
+used to open a raw TCP socket, where any process on the port qualified.
+`drush neo:build:status`'s four verdicts — DEV, STALE, ORPHANED and PROD — are
+covered by tests for the first time.
+
+## `$settings['neo']['host']` and `['https']` are gone, and never worked
+
+Both were read and then overwritten one line later — `host` from
+`$_SERVER['SERVER_NAME']`, `https` to a hard-coded `TRUE` — so neither could
+ever take effect. They flowed into the build collection and out into `neo.json`,
+and the Node toolchain read neither: `neo-vite.cjs` builds its origin from
+`DDEV_PRIMARY_URL`, and only `port` is ever read back out of `neo.json`. A
+developer setting either key spent an afternoon on something that was
+overwritten before it was used.
+
+Deleted rather than deprecated: `NeoBuildCollection` loses `getHost()`,
+`setHost()`, `getHttps()` and `setHttps()` along with the two constructor
+arguments they were set from, and `neo.json` loses both keys. `neo.json` needs
+no migration — it is gitignored per site and rewritten by every prepare.
+`port` is now the only key `$settings['neo']` carries.
+
+## The static state helpers are deprecated in docblock only
+
+`NeoBuild::getNeoState()`, `setNeoState()` and `unsetNeoState()` remain as thin
+wrappers over the same two state keys and keep working. They carry an
+`@deprecated` docblock naming the injected replacement: `NeoBuild` now takes the
+state service and answers `isDevMode()`, `getScope()`, `setDevMode()` and
+`setScope()` through it.
+
+**No runtime deprecation notice is emitted, and no removal release is named.**
+A notice would fill logs across every site running this module for a call those
+sites cannot fix themselves, and naming a major nobody has scheduled would be a
+date this change cannot keep. Removal is a later decision.
+
+`NeoBuild::getViteDevServerUrl()` is **deleted** rather than deprecated: it
+returned a URL built from the hard-coded port, so it was already wrong on any
+site that had moved it, and there was nothing worth preserving. `preventAlter`
+is no longer static, and `NeoBuild` holds no static mutable state at all — which
+is what made the render path reachable from a test.
+
 ## The build CLI owns its exit status — a build that used to pass may now fail
 
 The build CLI exited 0 whatever happened. Six build steps had their status discarded, the scope

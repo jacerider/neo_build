@@ -16,6 +16,7 @@ Full human reference: [web/modules/contrib/neo_build/README.md](web/modules/cont
 
 - **`neo: true` libraries** — in a `*.libraries.yml`, a library flagged `neo: true` (or `neo: {scope: front}`) lists `src/` entrypoints instead of `dist/`. The module swaps them for the compiled `dist/` assets (and pulls in their dependencies) using `manifest.json`. When the Vite **dev server** is up, it serves the live source instead.
 - **Scopes** — the build is partitioned into scopes: **`front`** (frontend theme) and **`back`** (backend/admin theme). **Admin pages render with the `back` theme.** **The set is closed** — it is the `Drupal\neo_build\Scope` enum, not YAML and not an alter hook, so there is no scope to discover beyond these two, and **a scope's id is the machine name of the theme it compiles into**. An extension declares its scopes in info.yml (`neo: { scope: [front, back] }`); with none declared a **module** falls into every scope and a **theme** into `front` alone. List them with `drush neo-scopes`.
+- **How an entrypoint resolves** — `neo_build.manifest_resolver` derives the **active scope** for the request, maps it to that scope's `dist/`, and looks the entrypoint up there. The rule is: the active theme's machine name is a scope id → that scope; else the active theme is the admin theme → `back`; else `front`. It is derived per request and never persisted (site repo `docs/adr/0002-render-time-scope-is-derived-not-persisted.md` records why). **A library declared in one scope resolves against that scope**, not against whichever theme is rendering — so a front-only library on an admin page now gets front's built file instead of silently shipping its raw `.ts`/`.css` source. A library in both scopes still follows the active scope, unchanged.
 - **Tailwind is scope-isolated** — `@tailwind base` only emits the classes aggregated **for that scope**. A utility used only in a `front` library will **not exist** in the `back` build's CSS, and vice versa. This is the #1 cause of "my class does nothing": the class is real but the owning scope wasn't rebuilt (or you used it in the other scope).
 - **Two-step build** — `drush neo:build <scope>` (alias `neo`) is **prepare**: it writes the four build artifacts — `neo.json`, `neo.tsconfig.json` and `phpstan.neon` at the project root, and `tailwind.neo.css` beside the scope's **primary file** (the CSS entrypoint that carries `@import "tailwindcss"`). Vite then compiles to `dist/`. The npm CLI orchestrates both: it calls `drush neo <scope>` then runs Vite. A scope with no primary file gets a `⚠ [neo] No primary CSS file in this scope …` warning and no `tailwind.neo.css`; the other three artifacts are still written.
 - **Generated** — `neo.json` is generated and git-ignored. **`neo.tsconfig.json` is generated but TRACKED**, so every build shows up as a diff. It is only the `include` list, and a single-scope build (`npm run build:front`) rewrites it for *that scope alone*, silently dropping the other scope's entries — run `npm run deploy` before committing it, or the back scope loses its files. `_neo.lock` is the dev-mode lock file.
@@ -28,6 +29,8 @@ Before running **any** build, check `drush neo-status` (`--format=json` for scri
 - **PROD** — no dev server. Build normally: `npm run build:front` / `npm run build:back` for one scope, `npm run deploy` for all.
 - **STALE** — dev state is on but the server died without cleanup. `npm run deploy` restores `dist/` assets.
 - **ORPHANED** — a server is answering but Drupal isn't using it. Restart `npm start` or stop the server.
+
+The probe behind `dev_server_up` is an HTTP GET for `/@vite/client`, the same request the build CLI makes, so **Drush and the CLI now agree on what counts as a dev server** — only a real Vite server answers it. Drush used to open a raw TCP socket, so any process on the port read as DEV. `dev_server_url` reports the URL, or the reason there is none when `DDEV_PRIMARY_URL_WITHOUT_PORT` is unset.
 
 Prod builds **refuse to run** while a dev server is answering (override: `--force`). The refusal is not an error to work around — it means the change is already live.
 
@@ -68,7 +71,7 @@ finishing step, and the page still serves the old `dist/`. The tell is the mtime
 `web/themes/<theme>/dist/front.css`: unchanged means nothing compiled. Only the npm commands
 below write `dist/`.
 
-- `npm start` — interactive: pick a **scope** and **dev vs prod**. Dev launches the Vite **HMR dev server** (port 5173, exposed via DDEV); prod builds that scope to `dist/`. Non-interactive: `npm start -- <prod|dev> <scope>`.
+- `npm start` — interactive: pick a **scope** and **dev vs prod**. Dev launches the Vite **HMR dev server** (port 5173 by default, `$settings['neo']['port']` to move it, exposed via DDEV); prod builds that scope to `dist/`. Non-interactive: `npm start -- <prod|dev> <scope>`.
 - `npm run build:front` / `npm run build:back` — non-interactive prod build of **one** scope. Prefer these over `deploy` when you know the scope.
 - `npm run deploy` — `npm start -all`: prod-build **every** scope. This is the "make it real / commit-ready" build.
 - `npm run preview` — `vite preview`.
@@ -100,7 +103,11 @@ drush (manifest + lifecycle):
 
 ## Dev server vs `dist/`
 
-`npm start` in **dev** mode runs Vite with HMR: edits to `src` TS/CSS (and watched Twig/yml) reload instantly. While the dev server is reachable on `:5173`, the module serves **live source** and **`dist/` is intentionally stale — don't rebuild it or trust its contents in dev.** The switch is cache-gated: after starting/stopping the server, `drush cr` so the library definitions re-resolve to server-vs-dist.
+`npm start` in **dev** mode runs Vite with HMR: edits to `src` TS/CSS (and watched Twig/yml) reload instantly. While the dev server is answering, the module serves **live source** and **`dist/` is intentionally stale — don't rebuild it or trust its contents in dev.** The switch is cache-gated: after starting/stopping the server, `drush cr` so the library definitions re-resolve to server-vs-dist.
+
+The port defaults to 5173 and is **not fixed** — `$settings['neo']['port']` moves it, and the asset URL, the Drush probe and the CLI probe all read it from there. `port` is the only key `$settings['neo']` carries.
+
+⚠ **Dev mode requires DDEV.** The dev server URL is built from `DDEV_PRIMARY_URL_WITHOUT_PORT`, and `drush neo:build:dev:enable` **refuses** when it is unset, naming the variable, rather than enabling a dev mode in which every asset 404s. It writes nothing when it refuses — no state flag, no `_neo.lock`, no pre-commit hook — and exits non-zero, which stops `npm start`. The Vite dev server refuses to start for the same reason. There is no portability off DDEV, by design.
 
 For committed/production assets, run `npm run deploy` (builds all scopes to `dist/`). `dist/*.css` is the source of truth in prod; in dev it is not.
 
@@ -185,6 +192,8 @@ After editing these, `drush cr` and rebuild the scope.
 
 ## Common pitfalls
 
+- **Warning: "The `<scope>` scope has no built file for the entrypoint `<path>`"** — on the `neo_build` logger channel. That scope **is** built and its manifest predates the entrypoint: prepare has not run since the entrypoint was declared. Build that scope. A scope with no manifest at all says nothing on purpose — "not built yet" is normal before a first build and during install.
+- **`$settings['neo']['host']` / `['https']` do nothing — they are gone** — they never took effect (both were overwritten one line after being read) and were removed. `port` is the only key `$settings['neo']` carries. If you are trying to change the dev server's host or scheme, you are looking at the wrong lever: the URL comes from DDEV.
 - **Class is real but does nothing** — Tailwind scope isolation. The class wasn't compiled into the scope actually rendering the page (or you added it to `front` but need it in `back`, or vice versa). Rebuild the owning scope; when in doubt (and no dev server is up) `npm run deploy`.
 - **Build refused: "a Neo dev server is already running"** — not an error. The watcher already serves your change via HMR; at most `drush cr` if something cached. Only a cross-scope change needs a build, and that means stopping the dev session first — ask the user rather than passing `--force`.
 - **Admin-side change didn't apply** — admin uses the **back** theme; you probably only rebuilt `front`.

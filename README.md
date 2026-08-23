@@ -5,6 +5,7 @@ CONTENTS OF THIS FILE
  * Requirements
  * Installation
  * Usage
+ * Asset Resolution
  * Build for DEV
  * Build for PROD
  * Build Status
@@ -87,6 +88,57 @@ library-name:
  * The module will dynamically rewrite assets paths to dist and include
    their dependencies defined in manifest.json.
 
+ASSET RESOLUTION
+----------------
+
+The `neo_build.manifest_resolver` service owns everything between a declared
+entry point and the built file that serves it: it derives the **active scope**
+for the request, maps that scope to its **dist root**, holds one manifest per
+scope for the duration of the request, resolves an entry point to a dist path,
+and reports an entry point it could not resolve.
+
+### The active scope
+
+The active scope is **derived per request and never written down**. The rule,
+in order:
+
+ 1. If the active theme's machine name is a scope id, that is the active scope.
+ 2. Otherwise, if the active theme is the site's admin theme, `back`.
+ 3. Otherwise, `front`.
+
+Step 1 works because of *scope identity*: a scope's id is the machine name of
+the theme it compiles into. It is what keeps a site that sets both
+`default: back` and `admin: back` resolving against `back`. Step 2 keeps the
+answer right for a site whose admin theme is a non-Neo theme such as Claro.
+
+See `docs/adr/0002-render-time-scope-is-derived-not-persisted.md` in the site
+repository for the rule and, more usefully, for why a persisted scope-to-dist-
+root map was rejected — so that it does not get re-decided later.
+
+### A library built into one scope resolves against that scope
+
+**This is a behaviour change.** A library declared in a single scope now
+resolves against *that* scope's manifest, rather than against whichever theme
+happens to be rendering. A library declared in both scopes still resolves
+against the active scope, which is the majority case and is unchanged.
+
+Previously the rewrite read the active theme's manifest whichever scope the
+library belonged to. A library compiled into only one scope and rendered in the
+other missed the lookup, and the miss was silent: the library kept its declared
+source path and shipped a `.ts` or unbuilt `.css` file to the browser.
+
+### The unresolved-entry-point warning
+
+If you see a warning on the `neo_build` logger channel naming a scope and an
+entry point, it means that scope **is** built and its manifest does not carry
+that entry point — in practice, prepare has not run since the entry point was
+declared. Run a build for that scope.
+
+A scope with **no** manifest at all is deliberately silent. "Not built yet" is
+the ordinary state of every scope before its first build and of every site
+during install, and warning there would emit one message per entry point on a
+site with no `dist/`.
+
 BUILD FOR DEV
 -------------
 
@@ -96,10 +148,26 @@ To use hot module reload during development, run:
 npm start
 ```
 
-The server will run in non-HTTPS mode to avoid XSS issues. If the server is
-accessible on the localhost under default port (5173) the module will
-automatically start using it instead of dist assets from manifest.json as soon
-as you clear the cache (library definitions are cached by default).
+When a dev server is answering, the module serves live source instead of the
+dist assets from manifest.json, as soon as you clear the cache — library
+definitions are cached by default.
+
+The port is **not fixed**. It defaults to 5173 and is configurable:
+
+```php
+$settings['neo']['port'] = 5199;
+```
+
+Everything that needs the port reads it from there: the URL the rewritten
+assets point at, the Drush probe, and the build CLI's own probe. `port` is the
+only key `$settings['neo']` carries.
+
+**Dev mode requires DDEV.** The dev server URL is built from
+`DDEV_PRIMARY_URL_WITHOUT_PORT`, and `drush neo:build:dev:enable` **refuses**
+when that variable is absent — naming the variable — rather than turning dev
+mode on into a state where every asset 404s. Nothing is written when it
+refuses: no state flag, no `_neo.lock`, no pre-commit hook. The Vite dev server
+refuses to start for the same reason. No portability off DDEV is offered.
 
 BUILD FOR PROD
 --------------
@@ -203,7 +271,22 @@ and whether a dev server is actually answering, run:
 drush neo-status
 ```
 
-Use `--format=json` for machine-readable output.
+Use `--format=json` for machine-readable output. The `status` field is one of:
+
+ * **DEV** — dev mode is on and a dev server is answering. Assets are served
+   over HMR for that scope; other scopes still serve stale `dist/`.
+ * **STALE** — dev mode is on but nothing is answering. Run `npm run deploy`,
+   or `drush neo-dev-disable` followed by `drush cr`, to restore `dist/`.
+ * **ORPHANED** — a dev server is answering but Drupal is not using it.
+   Restart `npm start`, or stop the server.
+ * **PROD** — assets are served from compiled `dist/`.
+
+`dev_server_url` reports the URL, or the reason there is none when
+`DDEV_PRIMARY_URL_WITHOUT_PORT` is not set.
+
+Drush and the build CLI now agree on what counts as a dev server: both issue an
+HTTP GET for `/@vite/client`, which only a real Vite server answers. Drush used
+to open a raw TCP socket instead, so any process listening on the port counted.
 
 BROWSER TESTS
 -------------
