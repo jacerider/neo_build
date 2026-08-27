@@ -1,13 +1,12 @@
 #!/bin/bash
+#
+# Installed by `pkg hook`. Blocks commits made while the Neo build is running
+# and commits that carry debug calls into a released package.
+#
+# pkg-hook-version: 2
+#
+# Exit codes: 0 ok, 1 Neo DEV mode active, 2 debug functions found.
 
-# Exit codes:
-# 0 - All checks passed
-# 1 - Neo DEV mode active
-# 2 - Debug functions found in PHP files
-
-EXIT_CODE=0
-
-# Check for _neo.lock file at repository root
 if [ -f "_neo.lock" ]; then
   echo "The _neo.lock file exists at repository root."
   echo "This means you are in Neo DEV mode."
@@ -17,40 +16,107 @@ if [ -f "_neo.lock" ]; then
   echo "  - pressing 'ctrl+c' in the terminal window"
   echo "    that is running the Neo build"
   echo ""
-  echo "  - running "npm run deploy""
+  echo "  - running \"npm run deploy\""
   echo ""
-  echo "  - running "drush neo-dev-disable""
+  echo "  - running \"drush neo-dev-disable\""
   exit 1
 fi
 
-# Check PHP files for debug functions
-echo "Checking for debug functions in PHP files..."
+echo "Checking for debug functions..."
 
-# Get list of staged PHP files
-STAGED_PHP_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.php$')
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR \
+  | grep -E '\.(php|module|theme|inc|install|profile|engine)$' || true)
 
-# If there are PHP files staged, check them for debug functions
-if [ -n "$STAGED_PHP_FILES" ]; then
-  # Search for debug function calls in staged PHP files
-  DEBUG_CALLS=$(grep -l "ksm\s*(" $STAGED_PHP_FILES 2>/dev/null || grep -l "dsm\s*(" $STAGED_PHP_FILES 2>/dev/null || grep -l "kint\s*(" $STAGED_PHP_FILES 2>/dev/null)
-
-  # If debug calls are found, report them
-  if [ -n "$DEBUG_CALLS" ]; then
-    echo "ERROR: Debug function calls found in the following files:"
-    echo "$DEBUG_CALLS" | while read file; do
-      echo "  $file:"
-      grep -n "ksm\s*(" "$file" 2>/dev/null || true
-      grep -n "dsm\s*(" "$file" 2>/dev/null || true
-      grep -n "kint\s*(" "$file" 2>/dev/null || true
-    done
-    echo ""
-    echo "Please remove these debug functions before committing."
-    EXIT_CODE=2
-  else
-    echo "No debug functions found in PHP files."
-  fi
-else
+if [ -z "$STAGED" ]; then
   echo "No PHP files staged for commit."
+  exit 0
+fi
+
+# Token-based matcher, mirroring Drupal.Functions.DiscouragedFunctions: a name
+# only counts when it is genuinely called, so docblocks, comments, strings,
+# method calls and function definitions that merely mention it do not match.
+# Add `neo-debug-ok` to a line to allow a deliberate call.
+read -r -d '' NEO_DEBUG_PHP <<'PHPEOF' || true
+$names = ['ksm' => 1, 'dsm' => 1, 'dpm' => 1, 'kint' => 1];
+$src = stream_get_contents(STDIN);
+$tokens = @token_get_all($src);
+$lines = explode("\n", $src);
+$sig = [];
+foreach ($tokens as $t) {
+  if (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], TRUE)) {
+    continue;
+  }
+  $sig[] = $t;
+}
+$skip = [T_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION, T_NEW, T_CONST];
+if (defined('T_NULLSAFE_OBJECT_OPERATOR')) {
+  $skip[] = T_NULLSAFE_OBJECT_OPERATOR;
+}
+$found = [];
+foreach ($sig as $i => $t) {
+  if (!is_array($t)) {
+    continue;
+  }
+  $fq = defined('T_NAME_FULLY_QUALIFIED') && $t[0] === T_NAME_FULLY_QUALIFIED;
+  if ($t[0] !== T_STRING && !$fq) {
+    continue;
+  }
+  $raw = ltrim($t[1], '\\');
+  if (str_contains($raw, '\\') || !isset($names[strtolower($raw)])) {
+    continue;
+  }
+  if (($sig[$i + 1] ?? NULL) !== '(') {
+    continue;
+  }
+  $prev = $sig[$i - 1] ?? NULL;
+  if (is_array($prev) && in_array($prev[0], $skip, TRUE)) {
+    continue;
+  }
+  $line = $lines[$t[2] - 1] ?? '';
+  if (str_contains($line, 'neo-debug-ok')) {
+    continue;
+  }
+  $found[$t[2]] = rtrim($line);
+}
+ksort($found);
+foreach ($found as $ln => $code) {
+  printf("%d:%s\n", $ln, $code);
+}
+PHPEOF
+
+HAVE_PHP=1
+if ! command -v php >/dev/null 2>&1; then
+  HAVE_PHP=""
+  echo "  ! php is not on PATH, so this falls back to a plain text search,"
+  echo "    which reports comments and strings as though they were calls."
+fi
+
+EXIT_CODE=0
+FOUND=""
+for FILE in $STAGED; do
+  if [ -n "$HAVE_PHP" ]; then
+    MATCHES=$(git show ":$FILE" 2>/dev/null | php -r "$NEO_DEBUG_PHP" 2>/dev/null || true)
+  else
+    MATCHES=$(git show ":$FILE" 2>/dev/null \
+      | grep -nE '\b(ksm|dsm|dpm|kint)[[:space:]]*\(' || true)
+  fi
+  if [ -n "$MATCHES" ]; then
+    if [ -z "$FOUND" ]; then
+      echo "ERROR: Debug function calls found:"
+      FOUND=1
+      EXIT_CODE=2
+    fi
+    echo "  $FILE:"
+    echo "$MATCHES" | sed 's/^/    /'
+  fi
+done
+
+if [ "$EXIT_CODE" -ne 0 ]; then
+  echo ""
+  echo "Please remove these debug functions before committing."
+  echo "If a call is deliberate, add \"neo-debug-ok\" to its line as a comment."
+else
+  echo "No debug functions found."
 fi
 
 exit $EXIT_CODE
