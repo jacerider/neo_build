@@ -2,7 +2,7 @@
 
 **Status:** accepted · **Date:** 2026-08-22
 **Context:** `neo_build` — the **active scope** and **dist root** the **manifest resolver** derives
-**Issue:** jacerider/neo_build#7  ·  **Plan:** `neo-build-hidden-state` on wps
+**Issue:** jacerider/neo_build#7
 
 **Decision.** The active scope — the scope a request renders in, which decides whose
 `dist/manifest.json` resolves its entrypoints — is derived per request and never written down. The
@@ -17,7 +17,7 @@ code paths, because the questions differ: prepare asks which extension owns the 
 fact about source files; render asks which scope this request is in, a fact about the current
 theme that prepare cannot know without a request. Step order matters too: reading `system.theme`
 alone (default `front`, admin `back`, else `front`) sent a theme both default and admin to `front`,
-and `carpenters-vr` and `nasrcc-oowl`, two of nine sites, set both to `back`. Fixed before the plan
+and two of nine sites set both to `back`. Fixed before the plan
 was ticketed by `neo-build-scope-constant`: step 1 handles it by construction, and step 2 keeps a
 non-Neo admin theme such as Claro right, where identity alone would not.
 

@@ -2,7 +2,7 @@
 
 **Status:** accepted · **Date:** 2026-08-22
 **Context:** `neo_build` — the **emit order** of the `tailwind.neo.css` artifact
-**Issue:** jacerider/neo_build#4  ·  **Plan:** `neo-build-tailwind-stylesheet` on wps
+**Issue:** jacerider/neo_build#4
 
 **Decision.** The generated `tailwind.neo.css` emits its `@import` lines at the end of the file,
 after the sources, the `@theme` block, the top-level rules, the layered rules and the variants. The
@@ -15,16 +15,15 @@ bug and move it. The artifact is never served to a browser: Vite and Lightning C
 import at the position it appears, so the specification's rule buys nothing and the position is
 free to mean something else. Last means **theme override precedence** — every imported stylesheet
 is inlined after the generated `@theme` block, so a token a theme declares beats the same token
-declared by a module's build-event subscriber. Across the seven sites running `neo_build`
-(`mnair-shop`, `coss`, `cultivators`, `rhls`, `wps`, `nasrcc-oowl`, `jost`) — fourteen generated
-stylesheets — two depend on it: `rhls/front` and `jost/front` declare `--text-color-default` both
-in the generated `@theme` block and in an imported theme stylesheet, and `jost/front` also declares
+declared by a module's build-event subscriber. Across seven sites — fourteen generated
+stylesheets — two `front` stylesheets depend on it: each declares `--text-color-default` both in
+the generated `@theme` block and in an imported theme stylesheet, and one also declares
 `@utility page-title` in both. The theme's value wins today. The other twelve stylesheets have no
 collision, so moving the block would go unnoticed until someone looked at those two sites.
 
 **Rejected.**
 - Move the imports to the top and repair the two collisions by renaming or rescoping the colliding
-  declarations in the `rhls` and `jost` themes — the repair lands in two site repositories, and the
+  declarations in those two themes — the repair lands in two site repositories, and the
   next site to declare a token its modules also declare inherits the same trap with nothing to
   catch it.
 - Move them to the top behind a setting that restores the old position — it adds a configuration

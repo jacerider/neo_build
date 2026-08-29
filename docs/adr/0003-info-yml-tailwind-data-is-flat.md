@@ -2,7 +2,7 @@
 
 **Status:** accepted · **Date:** 2026-08-22
 **Context:** `neo_build` — the **flat declaration rule** and the **declaration refusal** in prepare
-**Issue:** jacerider/neo_build#10  ·  **Plan:** `neo-build-flat-declarations` on wps
+**Issue:** jacerider/neo_build#10
 
 **Decision.** An extension's `neo:` block may declare Tailwind data only as flat declarations with
 kebab-case property names, plus the `apply:` key; prepare refuses an uppercase letter in a property
