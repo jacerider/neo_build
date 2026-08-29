@@ -139,7 +139,7 @@ class Preparer {
 
     $this->state->set(self::SCOPE_STATE_KEY, $scope);
 
-    // Example: /Users/*/Sites/*/*.
+    // The absolute path of the project checkout on the host.
     $root = $this->projectRoot->getRoot();
     // Example: web/.
     $docRoot = $this->projectRoot->getDocRoot();

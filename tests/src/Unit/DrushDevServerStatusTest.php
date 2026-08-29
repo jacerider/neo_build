@@ -175,7 +175,7 @@ class DrushDevServerStatusTest extends UnitTestCase {
   /**
    * Runs the status command and returns its rows.
    */
-  protected function statusRows(bool $dev, bool $answering, ?string $host = 'https://wps.ddev.site'): array {
+  protected function statusRows(bool $dev, bool $answering, ?string $host = 'https://example.ddev.site'): array {
     if ($host === NULL) {
       putenv(DevServer::ENVIRONMENT_VARIABLE);
     }

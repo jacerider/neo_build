@@ -41,9 +41,8 @@ namespace Drupal\neo_build\Generator;
  * declared by a module's build-event subscriber. Move the block to the top and
  * that inverts, silently — no gate catches it, because twelve of the fourteen
  * generated stylesheets have no colliding declaration at all. The two that do
- * are `rhls/front` and `jost/front`, which each declare
- * `--text-color-default` in both places, and `jost/front` also declares
- * `@utility page-title` in both.
+ * are both `front` stylesheets: each declares `--text-color-default` in both
+ * places, and one also declares `@utility page-title` in both.
  *
  * Recorded in full, with the collision scan and the two rejected alternatives,
  * in the architecture decision record "The Tailwind stylesheet emits @import

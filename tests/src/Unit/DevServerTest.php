@@ -37,9 +37,9 @@ class DevServerTest extends UnitTestCase {
    * Criterion: the URL composes from the DDEV variable and the settings port.
    */
   public function testItComposesTheUrlFromTheVariableAndThePort(): void {
-    putenv(DevServer::ENVIRONMENT_VARIABLE . '=https://wps.ddev.site');
+    putenv(DevServer::ENVIRONMENT_VARIABLE . '=https://example.ddev.site');
 
-    $this->assertSame('https://wps.ddev.site:5173/', $this->devServer()->getUrl());
+    $this->assertSame('https://example.ddev.site:5173/', $this->devServer()->getUrl());
   }
 
   /**
@@ -88,12 +88,12 @@ class DevServerTest extends UnitTestCase {
    * Criterion: the port comes from settings, retiring the :5173 hardcode.
    */
   public function testItTakesThePortFromSettings(): void {
-    putenv(DevServer::ENVIRONMENT_VARIABLE . '=https://wps.ddev.site');
+    putenv(DevServer::ENVIRONMENT_VARIABLE . '=https://example.ddev.site');
 
     $devServer = $this->devServer(port: 5199);
 
     $this->assertSame(5199, $devServer->getPort());
-    $this->assertSame('https://wps.ddev.site:5199/', $devServer->getUrl());
+    $this->assertSame('https://example.ddev.site:5199/', $devServer->getUrl());
   }
 
   /**
