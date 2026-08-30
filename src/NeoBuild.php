@@ -292,7 +292,7 @@ class NeoBuild {
    * @see \Drupal\neo_build\NeoBuild::setDevMode()
    *
    * There is deliberately no runtime deprecation notice. This package family
-   * has never carried one; the notice would reach roughly thirty sites for a
+   * has never carried one; the notice would reach every installing site for a
    * call they cannot act on themselves, and phpstan-deprecation-rules already
    * reports the remaining internal callers statically.
    */

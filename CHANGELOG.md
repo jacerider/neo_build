@@ -277,7 +277,7 @@ Removed outright:
 - the `plugin.manager.neo_build_scope` service
 - the `neo_build_scope_info` alter hook
 
-**No deprecation cycle, deliberately.** Across the nine sites this package runs on, no site and
+**No deprecation cycle, deliberately.** Across the sites surveyed, no site and
 no package ships a second scopes YAML, nothing implements the alter hook, and every declared
 `neo: scope:` value is `front` or `back`. A deprecation period costs every one of those sites a
 release and buys nothing, so this release note is the notice instead.

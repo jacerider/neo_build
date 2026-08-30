@@ -206,7 +206,7 @@ class NeoBuildStateTest extends UnitTestCase {
       restore_error_handler();
     }
 
-    $this->assertSame([], $deprecations, 'No runtime deprecation may reach ~30 sites that cannot act on it.');
+    $this->assertSame([], $deprecations, 'No runtime deprecation may reach sites that cannot act on it.');
   }
 
   /**

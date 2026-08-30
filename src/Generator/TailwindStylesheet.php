@@ -31,7 +31,7 @@ namespace Drupal\neo_build\Generator;
  *
  * The CSS specification requires `@import` to precede every rule, so a reader
  * who knows CSS will read the trailing block as a bug and move it. It is not a
- * bug, and moving it breaks two of the seven sites that run this module.
+ * bug, and moving it breaks some of the sites that run this module.
  *
  * This artifact is never served to a browser. Vite and Lightning CSS inline
  * each import at the position it appears, so the specification's rule buys

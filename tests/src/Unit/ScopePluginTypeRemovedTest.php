@@ -13,7 +13,7 @@ use Symfony\Component\Yaml\Yaml;
  *
  * It promised an extension point — ship a `*.neo_build_scopes.yml`, or
  * implement `hook_neo_build_scope_info_alter()`, and the build gains a scope —
- * that nothing across nine sites ever took up, and that could not have worked
+ * that nothing on any site ever took up, and that could not have worked
  * on its own anyway: a scope also needs a theme, a base theme, a primary file,
  * an inline library and a settings entry. The `Scope` enum states the set
  * instead, and the manager, its YAML, its service and its alter hook were
