@@ -32,7 +32,7 @@ produce a build; the conflict guards first, the refusal covers a subscriber sour
 - Remove the camelCase conversion only, keep nesting — half the cruft, byte-identical output, but
   nesting has no YAML form worth defending and keeps the recursion, normaliser and array branch.
 - A deprecation release that warns while still converting — textbook expand–contract, but for one
-  maintainer, nine sites and `pkg update-all` it buys tracking, not safety the conflict lacks.
+  maintainer, every site and `pkg update-all` it buys tracking, not safety the conflict lacks.
 
 **Cost.** The emitted `tailwind.neo.css` changes shape — the moved utilities arrive via the trailing
 `@import` block, not the top-level rules section — so the plan's proof moves down to the compiled

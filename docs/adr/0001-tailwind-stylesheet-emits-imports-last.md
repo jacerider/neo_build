@@ -15,11 +15,11 @@ bug and move it. The artifact is never served to a browser: Vite and Lightning C
 import at the position it appears, so the specification's rule buys nothing and the position is
 free to mean something else. Last means **theme override precedence** — every imported stylesheet
 is inlined after the generated `@theme` block, so a token a theme declares beats the same token
-declared by a module's build-event subscriber. Across seven sites — fourteen generated
+declared by a module's build-event subscriber. Across the sites surveyed — fourteen generated
 stylesheets — two `front` stylesheets depend on it: each declares `--text-color-default` both in
 the generated `@theme` block and in an imported theme stylesheet, and one also declares
 `@utility page-title` in both. The theme's value wins today. The other twelve stylesheets have no
-collision, so moving the block would go unnoticed until someone looked at those two sites.
+collision, so moving the block would go unnoticed until someone looked at those two stylesheets.
 
 **Rejected.**
 - Move the imports to the top and repair the two collisions by renaming or rescoping the colliding
@@ -32,5 +32,5 @@ collision, so moving the block would go unnoticed until someone looked at those 
 
 **Cost.** The artifact contradicts the CSS specification on purpose, and a comment can only say so
 much to a reader who trusts the specification first. A unit test pins the emit order, imports
-included, so a future "fix" fails loudly rather than shipping to thirty sites. If the position is
+included, so a future "fix" fails loudly rather than shipping everywhere. If the position is
 ever revisited, the collision scan above is the thing to re-run first — not the CSS specification.

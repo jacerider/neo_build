@@ -17,7 +17,7 @@ code paths, because the questions differ: prepare asks which extension owns the 
 fact about source files; render asks which scope this request is in, a fact about the current
 theme that prepare cannot know without a request. Step order matters too: reading `system.theme`
 alone (default `front`, admin `back`, else `front`) sent a theme both default and admin to `front`,
-and two of nine sites set both to `back`. Fixed before the plan
+and some sites set both to `back`. Fixed before the plan
 was ticketed by `neo-build-scope-constant`: step 1 handles it by construction, and step 2 keeps a
 non-Neo admin theme such as Claro right, where identity alone would not.
 
@@ -33,8 +33,8 @@ non-Neo admin theme such as Claro right, where identity alone would not.
 - Identity only, steps 1 and 3 — set aside in the scope-constant interview; left if step 2 is cut.
 
 **Cost.** The derivation assumes a scope's primary file lives in the theme the scope is named after:
-true on all nine sites, each with exactly `front` and `back`, but not guaranteed. Tailwind base CSS
-in a module or base theme would derive a dist root with no manifest; those libraries pass through
-unrewritten and the unbuilt-scope path stays silent, so the failure is "assets do not resolve", not
-"wrong assets resolve". Step 2 has no test site behind it, so it is an allowance, not a measured
-requirement. A third scope needs a theme named after it, and nothing else.
+true on every site surveyed, each with exactly `front` and `back`, but not guaranteed. Tailwind base
+CSS in a module or base theme would derive a dist root with no manifest; those libraries pass
+through unrewritten and the unbuilt-scope path stays silent, so the failure is "assets do not
+resolve", not "wrong assets resolve". Step 2 has no test site behind it, so it is an allowance, not
+a measured requirement. A third scope needs a theme named after it, and nothing else.

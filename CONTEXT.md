@@ -186,7 +186,7 @@ compatibility" storage actually held. _Avoid:_ "unlayered rule", "backward-compa
 
 **Theme override precedence** — the reason imports come last: a stylesheet pulled in by
 `@import` is emitted after the generated `@theme` block, so a theme's own token wins over a
-module's. Two sites depend on it today. _Avoid:_ "import order bug".
+module's. Some sites depend on it today. _Avoid:_ "import order bug".
 
 ## Neo asset build — inline CSS and cache tags (settled by the `neo-build-dead-weight` spec)
 
@@ -210,7 +210,7 @@ persisted. The rule reads scope identity first: if the active theme's machine na
 id, that is the active scope; otherwise, if the active theme is the site's admin theme, `back`;
 otherwise `front`. Settled in that form by the `neo-build-scope-constant` spec and recorded in
 ADR 0002; the earlier default-then-admin ordering resolved to `front` on a site whose default
-theme is also its admin theme, which is two of the nine sites running `neo_build`. _Avoid:_
+theme is also its admin theme, which some sites do. _Avoid:_
 "current scope", "render scope", and above all "the scope" unqualified — that reads as the dev
 scope.
 
