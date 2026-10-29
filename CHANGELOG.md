@@ -1,5 +1,44 @@
 # Changelog
 
+## Production JavaScript is fully minified
+
+A production build used to ship every `dist/*.js` half-minified. The build runs
+Vite in library mode with the `es` format, and for that combination Vite mangles
+names and compacts syntax but deliberately keeps whitespace and comments: an ES
+library is expected to be bundled again, and minified whitespace would strip
+the `@__PURE__` annotations the next bundler tree-shakes with. Nothing bundles
+these chunks again — Drupal serves them to the browser as they are — and Vite
+offers no option to override it. So every chunk carried its indentation, line
+breaks and doc comments, and a library declaring `{ minified: true }` on its
+`.ts` entrypoint told Drupal's aggregator to skip a file that was not minified.
+
+**`neoVitePost()` now finishes the job.** It returns a second plugin,
+`neo:vite:minify`, whose `renderChunk` is ordered last — after Vite's own
+esbuild pass and after the IIFE wrapper — and runs esbuild's full minify over
+the chunk. Measured on one scope, its compiled JavaScript fell 28% raw and 17%
+gzipped in total, and the `{ minified: true }` flags are now true. Expect less
+inside a JS aggregate: Drupal's aggregator already strips whitespace from files
+not flagged `minified`, so the gain there is mostly in the flagged ones. The wrapper is unchanged and still decides per chunk, so every chunk still
+loads as a classic script.
+
+**`vite.config.ts` needs no change.** `neoVitePost()` returns a list of plugins
+now rather than one, and Vite flattens a nested list wherever it accepts a
+plugin, so the existing `neoVitePost(neo)` entry picks it up.
+
+**The pass follows Vite's settings.** It runs only when `build.minify` is
+`esbuild` (the default), so `build: { minify: false }` turns it off with the
+rest of minification for reading a build while debugging. It honours
+`build.target` and the `esbuild` options as Vite's pass does, so it never emits
+syntax the target rules out. The dev server never renders chunks, so its output
+is untouched.
+
+**Names were already mangled, and still are not everywhere.** Vite's pass did
+rename identifiers; this adds whitespace, comments and a second syntax pass, so
+nothing that depends on a name surviving is newly at risk. A chunk containing a
+direct `eval()` keeps the names in scope around it, as it did before: esbuild
+cannot rename what the evaluated code might reference. Vite warns about such a
+file on every build.
+
 ## A retired `base:` section is reported instead of silently dropped
 
 `neo_build` used to accept base-layer Tailwind data two ways: a subscriber

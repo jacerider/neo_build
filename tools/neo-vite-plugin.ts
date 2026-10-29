@@ -1,4 +1,4 @@
-import { Plugin } from "vite";
+import { Plugin, transformWithEsbuild } from "vite";
 // @ts-ignore
 import { resolve } from 'node:path';
 // @ts-ignore
@@ -167,7 +167,71 @@ const neoVite = (config:any): Plugin => {
   };
 };
 
-const neoVitePost = (config:any): Plugin => {
+/**
+ * Finishes minifying every chunk of a production build.
+ *
+ * Vite minifies a lib-mode `es` build only partway: identifiers are mangled and
+ * syntax compacted, but whitespace and comments are kept, because a library's
+ * ES output is meant to be bundled again downstream and minified whitespace
+ * strips the `@__PURE__` annotations that tree-shaking relies on. Nothing
+ * bundles these chunks again — Drupal serves them to the browser as they are —
+ * so that reasoning does not apply, and Vite gives no option to override it.
+ *
+ * So this pass runs last, after Vite's own esbuild pass and after the IIFE
+ * wrapper in neo:vite:post, and runs esbuild's full minify over the result.
+ * The wrapper has already scoped every name, so mangling reaches all of them
+ * — short of a direct `eval()`, which pins the names in scope around it.
+ *
+ * It follows `build.minify`: only the default `esbuild` minifier is finished
+ * here, and `build: { minify: false }` in vite.config.ts turns it off along
+ * with the rest of minification, which is the switch for debugging a build.
+ * `build.target` and the `esbuild` options are honoured as Vite honours them,
+ * so the output never uses syntax the target rules out. The dev server never
+ * renders chunks, so its output is untouched.
+ */
+const neoViteMinify = (): Plugin => {
+  let resolved: any;
+
+  return {
+    name: 'neo:vite:minify',
+    apply: 'build',
+
+    configResolved: (config) => {
+      resolved = config;
+    },
+
+    renderChunk: {
+      order: 'post',
+      handler: async function (code: string, chunk: any) {
+        if (resolved.build.minify !== 'esbuild' || resolved.esbuild === false) {
+          return null;
+        }
+        const sourcemap = !!resolved.build.sourcemap;
+        const { minify, minifyIdentifiers, minifySyntax, minifyWhitespace, ...esbuild } = resolved.esbuild || {};
+        const result = await transformWithEsbuild(code, chunk.fileName, {
+          ...esbuild,
+          loader: 'js',
+          target: resolved.build.target || undefined,
+          // As Vite's own pass declares them: a chunk left unwrapped for its
+          // ESM syntax must not fail on an older target.
+          supported: {
+            'dynamic-import': true,
+            'import-meta': true,
+            ...esbuild.supported,
+          },
+          minify: true,
+          sourcemap,
+        });
+        return {
+          code: result.code,
+          map: sourcemap ? result.map : null,
+        };
+      },
+    },
+  };
+};
+
+const neoViteScope = (config:any): Plugin => {
 
   return {
     name: 'neo:vite:post',
@@ -245,6 +309,17 @@ const neoVitePost = (config:any): Plugin => {
     }
   };
 };
+
+/**
+ * The post-processing plugins every Neo build runs.
+ *
+ * Returns a list, which Vite flattens wherever a plugin is accepted, so the
+ * `neoVitePost(neo)` entry in vite.config.ts needs no change.
+ */
+const neoVitePost = (config:any): Plugin[] => [
+  neoViteScope(config),
+  neoViteMinify(),
+];
 
 export {
   neoVite,

@@ -231,6 +231,24 @@ drush neo-dev-cleanup --skip-stamp
 
 There is deliberately no flag that restores the old always-exit-0 behaviour.
 
+### Compiled JavaScript is fully minified
+
+Every `dist/*.js` a production build writes is minified: names mangled, syntax
+compacted, whitespace and comments gone. Vite on its own stops short of that in
+a library build — it keeps whitespace in `es` output for downstream bundlers —
+so `neoVitePost()` adds a last esbuild pass that finishes the job. The chunks
+are served straight to the browser, so a library's `{ minified: true }` on a
+`.ts` entrypoint is accurate and Drupal's aggregator can skip it.
+
+The pass follows Vite's own settings: it respects `build.target` and the
+`esbuild` options, and `build: { minify: false }` in `vite.config.ts` turns it
+off along with the rest of minification — the switch for reading a build's
+output while debugging. The dev server is unaffected; it never minifies.
+
+A direct `eval()` anywhere in a chunk stops esbuild from renaming the names in
+scope around it, so that chunk ships with its long names. Vite prints a warning
+naming the file on every build.
+
 ### The generated stylesheet
 
 Prepare writes `tailwind.neo.css` beside each scope's primary CSS file — the

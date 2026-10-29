@@ -113,6 +113,8 @@ The port defaults to 5173 and is **not fixed** — `$settings['neo']['port']` mo
 
 For committed/production assets, run `npm run deploy` (builds all scopes to `dist/`). `dist/*.css` is the source of truth in prod; in dev it is not.
 
+**Production `dist/*.js` is fully minified** (mangled names, no whitespace or comments) by a last esbuild pass in `neoVitePost()`, because Vite alone keeps whitespace in lib-mode `es` output. To read a build's output while debugging, set `build: { minify: false }` in `vite.config.ts` for that run — never ship it. A chunk containing a direct `eval()` keeps its long names (Vite warns about it on every build); that is the source's doing, not the build's.
+
 ## Browser tests
 
 Neo drives **Drupal core's Nightwatch runner**. Tests live at
